@@ -1,0 +1,28 @@
+# Dependencias de Node y construccion de Vite
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Entornos virtuales y cache de Python
+__pycache__/
+backend/__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+
+# Archivos de configuracion de entorno local
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

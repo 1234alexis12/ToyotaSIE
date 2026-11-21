@@ -1,0 +1,599 @@
+/* Variables globales de color, tipografia y dimensiones */
+:root {
+  /* Color rojo corporativo de Toyota */
+  --color-toyota-rojo: #EB0A1E;
+  /* Color secundario oscuro para barra lateral y encabezados */
+  --color-secundario: #1E293B;
+  /* Color de fondo general de la aplicacion */
+  --color-fondo: #F1F5F9;
+  /* Color blanco para tarjetas, tablas y contenedores */
+  --color-superficie: #FFFFFF;
+  /* Color de texto principal de alto contraste */
+  --color-texto: #0F172A;
+  /* Color de texto secundario y subtitulos */
+  --color-texto-muted: #64748B;
+  /* Color de bordes y separadores */
+  --color-borde: #CBD5E1;
+  /* Color rojo de advertencia para stock critico y alertas */
+  --color-alerta: #DC2626;
+  /* Color verde para operaciones exitosas y ventas cerradas */
+  --color-exito: #16A34A;
+  /* Color naranja para procesos en atencion y taller */
+  --color-proceso: #D97706;
+  /* Fuente del sistema limpia y legible */
+  --fuente-principal: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Reseteo basico y configuracion de caja */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--fuente-principal);
+}
+
+/* Estilos del cuerpo de la pagina */
+body {
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  min-height: 100vh;
+}
+
+/* Contenedor principal de la aplicacion */
+.layout-principal {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Barra lateral de navegacion */
+.barra-lateral {
+  width: 260px;
+  background-color: var(--color-secundario);
+  color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1rem;
+  flex-shrink: 0;
+}
+
+/* Encabezado del logo dentro de la barra lateral */
+.logo-contenedor {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 1.5rem;
+}
+
+/* Distintivo de la marca Toyota */
+.logo-insignia {
+  background-color: var(--color-toyota-rojo);
+  color: #FFFFFF;
+  font-weight: 800;
+  padding: 0.4rem 0.7rem;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+/* Texto del titulo de la barra lateral */
+.logo-texto h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.logo-texto p {
+  font-size: 0.75rem;
+  color: #94A3B8;
+}
+
+/* Lista de navegacion de modulos */
+.navegacion-lista {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-grow: 1;
+}
+
+/* Boton individual de cada modulo en el menu lateral */
+.nav-item-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: #CBD5E1;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+/* Efecto hover sobre botones del menu lateral */
+.nav-item-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+/* Estado activo del modulo seleccionado */
+.nav-item-btn.activo {
+  background-color: var(--color-toyota-rojo);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* Area de informacion de usuario y cierre de sesion al pie */
+.perfil-pie {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Tarjeta informativa del usuario conectado */
+.usuario-info {
+  font-size: 0.85rem;
+  color: #CBD5E1;
+}
+
+.usuario-info strong {
+  display: block;
+  color: #FFFFFF;
+}
+
+/* Boton para cerrar sesion */
+.btn-cerrar-sesion {
+  background-color: #334155;
+  color: #F8FAFC;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-cerrar-sesion:hover {
+  background-color: var(--color-alerta);
+}
+
+/* Contenedor del contenido principal */
+.area-contenido {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Barra superior del contenido */
+.barra-superior {
+  background-color: var(--color-superficie);
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--color-borde);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.barra-superior h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-secundario);
+}
+
+/* Espacio interior de la vista activa */
+.vista-interior {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Tarjetas genericas de interfaz */
+.tarjeta {
+  background-color: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Encabezado dentro de una tarjeta */
+.tarjeta-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-borde);
+}
+
+.tarjeta-encabezado h3 {
+  font-size: 1.15rem;
+  color: var(--color-secundario);
+}
+
+/* Grilla para las 4 tarjetas de KPIs del Dashboard */
+.grilla-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Tarjeta individual de KPI */
+.kpi-tarjeta {
+  background-color: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-left: 5px solid var(--color-toyota-rojo);
+  border-radius: 6px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.kpi-tarjeta.alerta {
+  border-left-color: var(--color-alerta);
+}
+
+.kpi-tarjeta.exito {
+  border-left-color: var(--color-exito);
+}
+
+.kpi-tarjeta.proceso {
+  border-left-color: var(--color-proceso);
+}
+
+.kpi-titulo {
+  font-size: 0.85rem;
+  color: var(--color-texto-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.kpi-valor {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-secundario);
+}
+
+.kpi-subtexto {
+  font-size: 0.8rem;
+  color: var(--color-texto-muted);
+  margin-top: 0.25rem;
+}
+
+/* Formularios en grilla */
+.formulario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+/* Grupo de campo y etiqueta de formulario */
+.campo-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.campo-grupo label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-secundario);
+}
+
+/* Entradas de texto, selects y fechas */
+.campo-grupo input,
+.campo-grupo select,
+.campo-grupo textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-borde);
+  border-radius: 5px;
+  font-size: 0.9rem;
+  background-color: #FFFFFF;
+  color: var(--color-texto);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.campo-grupo input:focus,
+.campo-grupo select:focus,
+.campo-grupo textarea:focus {
+  border-color: var(--color-toyota-rojo);
+  box-shadow: 0 0 0 2px rgba(235, 10, 30, 0.15);
+}
+
+/* Botones principales de accion */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Boton primario con color Toyota */
+.btn-primario {
+  background-color: var(--color-toyota-rojo);
+  color: #FFFFFF;
+}
+
+.btn-primario:hover {
+  background-color: #C50819;
+}
+
+/* Boton secundario con fondo neutro */
+.btn-secundario {
+  background-color: #E2E8F0;
+  color: var(--color-secundario);
+}
+
+.btn-secundario:hover {
+  background-color: #CBD5E1;
+}
+
+/* Boton de exito para ventas y confirmaciones */
+.btn-exito {
+  background-color: var(--color-exito);
+  color: #FFFFFF;
+}
+
+.btn-exito:hover {
+  background-color: #15803D;
+}
+
+/* Boton de impresion de reportes */
+.btn-imprimir {
+  background-color: var(--color-secundario);
+  color: #FFFFFF;
+}
+
+.btn-imprimir:hover {
+  background-color: #0F172A;
+}
+
+/* Botones pequenos para acciones en filas de tablas */
+.btn-sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+/* Estilos de tablas nativas HTML */
+.tabla-contenedor {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-borde);
+  border-radius: 6px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--color-superficie);
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+/* Encabezados de tabla */
+thead tr {
+  background-color: #F8FAFC;
+  border-bottom: 2px solid var(--color-borde);
+}
+
+th {
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  color: var(--color-secundario);
+}
+
+/* Filas del cuerpo de la tabla */
+tbody tr {
+  border-bottom: 1px solid var(--color-borde);
+  transition: background-color 0.15s;
+}
+
+tbody tr:hover {
+  background-color: #F8FAFC;
+}
+
+td {
+  padding: 0.85rem 1rem;
+  color: var(--color-texto);
+}
+
+/* Fila resaltada en rojo si el stock es critico */
+tr.fila-alerta {
+  background-color: #FEF2F2 !important;
+}
+
+/* Badges o etiquetas de estado */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-alerta {
+  background-color: #FEE2E2;
+  color: var(--color-alerta);
+}
+
+.badge-exito {
+  background-color: #DCFCE7;
+  color: var(--color-exito);
+}
+
+.badge-proceso {
+  background-color: #FEF3C7;
+  color: var(--color-proceso);
+}
+
+.badge-neutro {
+  background-color: #E2E8F0;
+  color: #475569;
+}
+
+/* Pantalla de Login */
+.login-contenedor {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  padding: 1.5rem;
+}
+
+.login-tarjeta {
+  background-color: #FFFFFF;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.login-encabezado {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-encabezado h2 {
+  font-size: 1.5rem;
+  color: var(--color-secundario);
+  margin-top: 0.5rem;
+}
+
+.login-encabezado p {
+  font-size: 0.85rem;
+  color: var(--color-texto-muted);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Accesos rapidos para demostracion en sustentacion */
+.login-demo-roles {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px dashed var(--color-borde);
+  font-size: 0.8rem;
+  color: var(--color-texto-muted);
+}
+
+.demo-botones-grupo {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.btn-demo {
+  flex: 1;
+  padding: 0.4rem;
+  background-color: #F1F5F9;
+  border: 1px solid var(--color-borde);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--color-secundario);
+  font-weight: 600;
+}
+
+.btn-demo:hover {
+  background-color: #E2E8F0;
+}
+
+/* Mensajes de error o exito */
+.mensaje-alerta {
+  padding: 0.75rem 1rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.mensaje-alerta.error {
+  background-color: #FEE2E2;
+  color: var(--color-alerta);
+  border: 1px solid #FCA5A5;
+}
+
+.mensaje-alerta.exito {
+  background-color: #DCFCE7;
+  color: var(--color-exito);
+  border: 1px solid #86EFAC;
+}
+
+/* Encabezado formal solo visible para impresion y PDF */
+.membrete-impresion {
+  display: none;
+}
+
+/* Reglas de impresion para generacion de reportes en PDF */
+@media print {
+  body {
+    background-color: #FFFFFF;
+  }
+  .barra-lateral,
+  .barra-superior,
+  .btn,
+  .formulario-grid,
+  .tarjeta-formulario,
+  .no-imprimir {
+    display: none !important;
+  }
+  .area-contenido {
+    overflow: visible;
+  }
+  .vista-interior {
+    padding: 0;
+  }
+  .tarjeta {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+  .membrete-impresion {
+    display: block;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--color-toyota-rojo);
+  }
+  .membrete-impresion h2 {
+    font-size: 1.3rem;
+    color: #000000;
+  }
+  .membrete-impresion p {
+    font-size: 0.85rem;
+    color: #333333;
+  }
+  table {
+    border: 1px solid #333333;
+  }
+  th, td {
+    border: 1px solid #CCCCCC;
+    color: #000000;
+  }
+  thead tr {
+    background-color: #EEEEEE !important;
+  }
+}
