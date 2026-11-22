@@ -13,6 +13,8 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   /* Estado para el modulo actualmente visible en pantalla */
   const [moduloActivo, setModuloActivo] = useState('dashboard');
+  /* Estado para alternar el menu lateral en pantallas pequeñas o moviles */
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
   /* Recuperar sesion guardada en localStorage si existe */
   useEffect(() => {
@@ -42,11 +44,18 @@ export default function App() {
     }
   };
 
-  /* Cerrar sesion del usuario y limpiar almacenamiento */
+  /* Cerrar sesion del usuario y limpiar almacenamiento local */
   const manejarCerrarSesion = () => {
     setUsuario(null);
     localStorage.removeItem('toyota_sesion');
     setModuloActivo('dashboard');
+    setMenuMovilAbierto(false);
+  };
+
+  /* Cambiar de modulo activo y cerrar menu movil en resoluciones reducidas */
+  const cambiarModulo = (nuevoModulo) => {
+    setModuloActivo(nuevoModulo);
+    setMenuMovilAbierto(false);
   };
 
   /* Si no hay sesion activa, mostrar la pantalla de Login */
@@ -59,14 +68,30 @@ export default function App() {
 
   return (
     <div className="layout-principal">
-      {/* Barra lateral de navegacion */}
-      <aside className="barra-lateral no-imprimir">
+      {/* Fondo oscuro para cerrar menu lateral en dispositivos moviles */}
+      {menuMovilAbierto && (
+        <div
+          className="overlay-movil"
+          onClick={() => setMenuMovilAbierto(false)}
+        />
+      )}
+
+      {/* Barra lateral de navegacion con posicion fija y soporte responsive */}
+      <aside className={`barra-lateral no-imprimir ${menuMovilAbierto ? 'abierta-movil' : ''}`}>
         <div className="logo-contenedor">
           <div className="logo-insignia">TOYOTA</div>
           <div className="logo-texto">
             <h2>SIG-Toyota</h2>
             <p>Arequipa Concesionario</p>
           </div>
+          {/* Boton para cerrar menu en vista movil */}
+          <button
+            type="button"
+            className="btn-cerrar-menu-movil"
+            onClick={() => setMenuMovilAbierto(false)}
+          >
+            ✕
+          </button>
         </div>
 
         {/* Menu lateral de navegacion segun perfil de usuario */}
@@ -76,7 +101,7 @@ export default function App() {
             <li>
               <button
                 className={`nav-item-btn ${moduloActivo === 'dashboard' ? 'activo' : ''}`}
-                onClick={() => setModuloActivo('dashboard')}
+                onClick={() => cambiarModulo('dashboard')}
               >
                 📊 Dirección General (KPIs)
               </button>
@@ -86,7 +111,7 @@ export default function App() {
           <li>
             <button
               className={`nav-item-btn ${moduloActivo === 'ventas' ? 'activo' : ''}`}
-              onClick={() => setModuloActivo('ventas')}
+              onClick={() => cambiarModulo('ventas')}
             >
               💼 Marketing y Ventas
             </button>
@@ -95,7 +120,7 @@ export default function App() {
           <li>
             <button
               className={`nav-item-btn ${moduloActivo === 'inventario' ? 'activo' : ''}`}
-              onClick={() => setModuloActivo('inventario')}
+              onClick={() => cambiarModulo('inventario')}
             >
               📦 Logística y Almacén
             </button>
@@ -104,7 +129,7 @@ export default function App() {
           <li>
             <button
               className={`nav-item-btn ${moduloActivo === 'taller' ? 'activo' : ''}`}
-              onClick={() => setModuloActivo('taller')}
+              onClick={() => cambiarModulo('taller')}
             >
               🔧 Operaciones y Taller
             </button>
@@ -115,7 +140,7 @@ export default function App() {
             <li>
               <button
                 className={`nav-item-btn ${moduloActivo === 'auditoria' ? 'activo' : ''}`}
-                onClick={() => setModuloActivo('auditoria')}
+                onClick={() => cambiarModulo('auditoria')}
               >
                 🛡️ Seguridad y Auditoría
               </button>
@@ -123,31 +148,53 @@ export default function App() {
           )}
         </ul>
 
-        {/* Informacion de usuario autenticado al pie de la barra lateral */}
+        {/* Informacion de usuario y primer boton de cierre de sesion al pie de la barra lateral */}
         <div className="perfil-pie">
           <div className="usuario-info">
             <strong>{usuario.nombre_completo}</strong>
             <span>Rol: {usuario.rol}</span>
           </div>
-          <button onClick={manejarCerrarSesion} className="btn-cerrar-sesion">
-            Cerrar Sesión
+          <button onClick={manejarCerrarSesion} className="btn-cerrar-sesion" title="Cerrar sesión">
+            🚪 Cerrar Sesión
           </button>
         </div>
       </aside>
 
       {/* Area donde se renderiza el contenido del modulo seleccionado */}
       <main className="area-contenido">
+        {/* Barra superior con titulo, boton hamburguesa y segundo boton visible de cerrar sesion */}
         <header className="barra-superior no-imprimir">
-          <h1>
-            {moduloActivo === 'dashboard' && 'Panel de Dirección y Gestión Estratégica'}
-            {moduloActivo === 'ventas' && 'Módulo de Marketing, Ventas y Cotizaciones'}
-            {moduloActivo === 'inventario' && 'Módulo de Distribución, Logística y Almacén'}
-            {moduloActivo === 'taller' && 'Módulo de Operaciones Técnicas y Mantenimiento'}
-            {moduloActivo === 'auditoria' && 'Módulo de Seguridad de Información (ISO 27001)'}
-          </h1>
-          <span className="badge badge-neutro">
-            Usuario: <strong>{usuario.username}</strong>
-          </span>
+          <div className="barra-superior-izquierda">
+            <button
+              type="button"
+              className="btn-hamburguesa-movil"
+              onClick={() => setMenuMovilAbierto(!menuMovilAbierto)}
+              title="Abrir menú"
+            >
+              ☰
+            </button>
+            <h1>
+              {moduloActivo === 'dashboard' && 'Panel de Dirección y Gestión Estratégica'}
+              {moduloActivo === 'ventas' && 'Módulo de Marketing, Ventas y Cotizaciones'}
+              {moduloActivo === 'inventario' && 'Módulo de Distribución, Logística y Almacén'}
+              {moduloActivo === 'taller' && 'Módulo de Operaciones Técnicas y Mantenimiento'}
+              {moduloActivo === 'auditoria' && 'Módulo de Seguridad de Información (ISO 27001)'}
+            </h1>
+          </div>
+
+          {/* Acciones de usuario en cabecera: SIEMPRE visible en todas las pantallas */}
+          <div className="usuario-acciones-top">
+            <span className="badge badge-neutro usuario-badge-texto">
+              👤 <strong>{usuario.nombre_completo}</strong> ({usuario.rol})
+            </span>
+            <button
+              onClick={manejarCerrarSesion}
+              className="btn-cerrar-sesion-header"
+              title="Cerrar sesión del sistema"
+            >
+              🚪 Cerrar Sesión
+            </button>
+          </div>
         </header>
 
         {/* Renderizado condicional del componente correspondiente */}

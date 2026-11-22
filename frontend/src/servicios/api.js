@@ -212,7 +212,7 @@ export async function apiCrearVenta(venta, username) {
     const res = await fetch(`${API_URL}/ventas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(venta)
+      body: JSON.stringify({ ...venta, username })
     });
     if (res.ok) return await res.json();
   } catch (e) {}
@@ -277,7 +277,7 @@ export async function apiCrearOrdenTaller(orden, username) {
     const res = await fetch(`${API_URL}/taller`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orden)
+      body: JSON.stringify({ ...orden, username })
     });
     if (res.ok) return await res.json();
   } catch (e) {}

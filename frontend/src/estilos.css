@@ -45,7 +45,7 @@ body {
   min-height: 100vh;
 }
 
-/* Barra lateral de navegacion */
+/* Barra lateral de navegacion con posicion fija para que no desaparezca al desplazarse */
 .barra-lateral {
   width: 260px;
   background-color: var(--color-secundario);
@@ -54,6 +54,10 @@ body {
   flex-direction: column;
   padding: 1.5rem 1rem;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 /* Encabezado del logo dentro de la barra lateral */
@@ -180,6 +184,63 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.barra-superior-izquierda {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Grupo de usuario y boton visible de cerrar sesion */
+.usuario-acciones-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Boton de cerrar sesion en la barra superior visible en todo momento */
+.btn-cerrar-sesion-header {
+  background-color: var(--color-alerta);
+  color: #FFFFFF;
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: background-color 0.2s;
+}
+
+.btn-cerrar-sesion-header:hover {
+  background-color: #B91C1C;
+}
+
+/* Boton hamburguesa para desplegar navegacion en moviles */
+.btn-hamburguesa-movil {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--color-borde);
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--color-secundario);
+}
+
+/* Boton para cerrar drawer movil */
+.btn-cerrar-menu-movil {
+  display: none;
+}
+
+/* Fondo transparente para cerrar drawer en movil */
+.overlay-movil {
+  display: none;
 }
 
 .barra-superior h1 {
@@ -595,5 +656,57 @@ tr.fila-alerta {
   }
   thead tr {
     background-color: #EEEEEE !important;
+  }
+}
+
+/* Reglas responsive para pantallas de tablets y moviles */
+@media (max-width: 900px) {
+  .btn-hamburguesa-movil {
+    display: inline-block;
+  }
+
+  .barra-superior h1 {
+    font-size: 1.05rem;
+  }
+
+  .barra-lateral {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    z-index: 1000;
+    height: 100vh;
+    transition: left 0.3s ease;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+  }
+
+  .barra-lateral.abierta-movil {
+    left: 0;
+  }
+
+  .btn-cerrar-menu-movil {
+    display: block;
+    background: transparent;
+    border: none;
+    color: #FFFFFF;
+    font-size: 1.2rem;
+    cursor: pointer;
+    margin-left: auto;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .overlay-movil {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+
+  .vista-interior {
+    padding: 1rem;
+  }
+
+  .usuario-badge-texto {
+    display: none;
   }
 }
