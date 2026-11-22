@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { apiLogin } from './servicios/api';
+/* Importacion del logotipo oficial de Toyota */
+import toyotaLogo from './assets/ToyotaLogo.jpg';
 
 /* Componente de inicio de sesion y autenticacion */
 export default function Login({ onLoginExitoso }) {
@@ -48,9 +50,16 @@ export default function Login({ onLoginExitoso }) {
     <div className="login-contenedor">
       <div className="login-tarjeta">
         <div className="login-encabezado">
-          <div className="logo-insignia" style={{ display: 'inline-block', marginBottom: '0.5rem' }}>TOYOTA</div>
+          {/* Logotipo oficial de Toyota centrado */}
+          <div className="login-logo-img-wrapper">
+            <img
+              src={toyotaLogo}
+              alt="Logo Oficial Toyota"
+              className="login-logo-img"
+            />
+          </div>
           <h2>SIG-Toyota</h2>
-          <p>Sistema de Informacion Empresarial — Sede Arequipa</p>
+          <p>Sistema de Información Empresarial — Sede Arequipa</p>
         </div>
 
         {/* Mostrar mensaje de alerta si ocurrio un error */}

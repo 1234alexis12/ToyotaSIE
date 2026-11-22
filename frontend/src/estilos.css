@@ -536,6 +536,23 @@ tr.fila-alerta {
   margin-bottom: 2rem;
 }
 
+/* Envoltura centrada del logotipo oficial en el login */
+.login-logo-img-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+/* Imagen del logotipo oficial con dimensiones proporcionadas */
+.login-logo-img {
+  max-width: 140px;
+  height: auto;
+  max-height: 80px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
 .login-encabezado h2 {
   font-size: 1.5rem;
   color: var(--color-secundario);
