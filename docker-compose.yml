@@ -1,0 +1,75 @@
+# Orquestador multi-contenedor para el sistema empresarial SIG-Toyota
+# Item 12 de los lineamientos: Despliegue y Plataforma de Contenedores
+
+services:
+  # Servicio 1: Base de Datos Relacional MySQL 8.0
+  db:
+    image: mysql:8.0
+    container_name: toyota_mysql
+    restart: unless-stopped
+    environment:
+      # Nombre de la base de datos creada al inicializar el contenedor
+      MYSQL_DATABASE: toyota_db
+      # Clave de superusuario root
+      MYSQL_ROOT_PASSWORD: '123456'
+    ports:
+      # Mapeo de puerto para acceso desde herramientas de administracion (Workbench)
+      - "3306:3306"
+    volumes:
+      # Carga automatica del script de creacion de tablas, indices y semillas
+      - ./database/toyota_db.sql:/docker-entrypoint-initdb.d/01_toyota_db.sql:ro
+      # Volumen persistente para conservar la informacion de la base de datos
+      - toyota_db_data:/var/lib/mysql
+    healthcheck:
+      # Verificacion de disponibilidad de MySQL antes de levantar el backend
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Servicio 2: Backend API REST en Python Flask
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: toyota_backend
+    restart: unless-stopped
+    ports:
+      # Exposicion del puerto de la API REST
+      - "5000:5000"
+    environment:
+      # Nombre del host del contenedor de base de datos dentro de la red interna
+      MYSQL_HOST: db
+      # Puerto estandar de comunicacion interna en MySQL
+      MYSQL_PORT: 3306
+      # Usuario de conexion a la base de datos
+      MYSQL_USER: root
+      # Contraseña de la base de datos
+      MYSQL_PASSWORD: '123456'
+      # Nombre de la base de datos operativa
+      MYSQL_DATABASE: toyota_db
+      # Puerto de escucha del servidor Flask
+      PORT: 5000
+    depends_on:
+      # Asegura que el backend solo inicie cuando MySQL este completamente listo
+      db:
+        condition: service_healthy
+
+  # Servicio 3: Frontend Web React servido mediante Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: toyota_frontend
+    restart: unless-stopped
+    ports:
+      # Puerto HTTP principal accesible desde cualquier navegador
+      - "80:80"
+    depends_on:
+      # Espera que el backend este activo para responder a las peticiones del frontend
+      - backend
+
+# Definicion de volumenes para persistencia de datos
+volumes:
+  toyota_db_data:
+    driver: local

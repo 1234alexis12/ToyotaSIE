@@ -1,0 +1,74 @@
+# Flujo de Integracion Continua (CI/CD) para el proyecto SIG-Toyota
+# Item 12 y Seccion 6.4 / 6.5: Pipeline automatizado de pruebas y construccion
+
+name: Pipeline CI/CD SIG-Toyota
+
+# Eventos que disparan la ejecucion del pipeline
+on:
+  # Ejecuta en cada push hacia las ramas principales
+  push:
+    branches:
+      - main
+      - versionesFrontV1
+  # Ejecuta en la apertura o actualizacion de Pull Requests hacia main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # Trabajo 1: Validacion y ejecucion automatizada de pruebas unitarias del Backend
+  pruebas-backend:
+    name: Pruebas Unitarias Backend (Pytest)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Descarga del repositorio de codigo
+      - name: Descargar codigo fuente
+        uses: actions/checkout@v4
+
+      # Configuracion del entorno de ejecucion de Python
+      - name: Configurar entorno Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # Instalacion de librerias requeridas (Flask, Pytest, bcrypt, etc.)
+      - name: Instalar dependencias del Backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      # Ejecucion de la suite de pruebas unitarias
+      - name: Ejecutar pruebas con Pytest
+        run: |
+          cd backend
+          python -m pytest tests/test_api.py -v
+
+  # Trabajo 2: Validacion de construccion y empaquetado del Frontend
+  compilacion-frontend:
+    name: Compilacion y Empaquetado Frontend (React Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Descarga del codigo fuente
+      - name: Descargar codigo fuente
+        uses: actions/checkout@v4
+
+      # Configuracion del entorno Node.js
+      - name: Configurar entorno Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Instalacion de paquetes de React y dependencias de desarrollo
+      - name: Instalar dependencias de Node
+        run: |
+          cd frontend
+          npm install
+
+      # Validacion de construccion para produccion
+      - name: Compilar aplicacion Frontend
+        run: |
+          cd frontend
+          npm run build
