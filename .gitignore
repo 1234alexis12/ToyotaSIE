@@ -12,6 +12,8 @@ backend/__pycache__/
 venv/
 .venv/
 env/
+.pytest_cache/
+backend/.pytest_cache/
 
 # Archivos de configuracion de entorno local
 .env
