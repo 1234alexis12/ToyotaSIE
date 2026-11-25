@@ -1,5 +1,5 @@
-/* URL base para consumir los endpoints del backend en Flask */
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+/* URL base: en desarrollo local apunta a localhost:5000, en Docker/Azure usa proxy relativo /api */
+const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:5000/api' : '/api');
 
 /* Datos semilla iniciales para pruebas en caso de que el backend este temporalmente inactivo */
 const DATOS_SEMILLA = {
