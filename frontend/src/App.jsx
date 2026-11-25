@@ -5,6 +5,8 @@ import Ventas from './Ventas';
 import Inventario from './Inventario';
 import Taller from './Taller';
 import Auditoria from './Auditoria';
+import AreaTI from './AreaTI';
+import ServiceDeskFlotante from './ServiceDeskFlotante';
 import './estilos.css';
 
 /* Componente principal de la aplicacion y controlador de rutas por rol */
@@ -15,6 +17,8 @@ export default function App() {
   const [moduloActivo, setModuloActivo] = useState('dashboard');
   /* Estado para alternar el menu lateral en pantallas pequeñas o moviles */
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  /* Contador para refrescar AreaTI cuando se crea un ticket desde el boton flotante */
+  const [refrescoTI, setRefrescoTI] = useState(0);
 
   /* Recuperar sesion guardada en localStorage si existe */
   useEffect(() => {
@@ -23,11 +27,12 @@ export default function App() {
       try {
         const user = JSON.parse(sesionGuardada);
         setUsuario(user);
-        /* Si es operador, dirigir por defecto a Ventas en lugar del Dashboard gerencial */
         if (user.rol === 'Operador') {
           setModuloActivo('ventas');
+        } else if (user.rol === 'TI') {
+          setModuloActivo('area-ti');
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem('toyota_sesion');
       }
     }
@@ -39,6 +44,8 @@ export default function App() {
     localStorage.setItem('toyota_sesion', JSON.stringify(datosUsuario));
     if (datosUsuario.rol === 'Operador') {
       setModuloActivo('ventas');
+    } else if (datosUsuario.rol === 'TI') {
+      setModuloActivo('area-ti');
     } else {
       setModuloActivo('dashboard');
     }
@@ -63,8 +70,9 @@ export default function App() {
     return <Login onLoginExitoso={manejarLogin} />;
   }
 
-  /* Determinar si el usuario tiene rol de Gerente para accesos privilegiados */
+  /* Determinar roles para accesos segun perfil RBAC */
   const esGerente = usuario.rol === 'Gerente';
+  const esTI = usuario.rol === 'TI';
 
   return (
     <div className="layout-principal">
@@ -108,35 +116,51 @@ export default function App() {
             </li>
           )}
 
-          <li>
-            <button
-              className={`nav-item-btn ${moduloActivo === 'ventas' ? 'activo' : ''}`}
-              onClick={() => cambiarModulo('ventas')}
-            >
-              💼 Marketing y Ventas
-            </button>
-          </li>
+          {!esTI && (
+            <>
+              <li>
+                <button
+                  className={`nav-item-btn ${moduloActivo === 'ventas' ? 'activo' : ''}`}
+                  onClick={() => cambiarModulo('ventas')}
+                >
+                  💼 Marketing y Ventas
+                </button>
+              </li>
 
-          <li>
-            <button
-              className={`nav-item-btn ${moduloActivo === 'inventario' ? 'activo' : ''}`}
-              onClick={() => cambiarModulo('inventario')}
-            >
-              📦 Logística y Almacén
-            </button>
-          </li>
+              <li>
+                <button
+                  className={`nav-item-btn ${moduloActivo === 'inventario' ? 'activo' : ''}`}
+                  onClick={() => cambiarModulo('inventario')}
+                >
+                  📦 Logística y Almacén
+                </button>
+              </li>
 
-          <li>
-            <button
-              className={`nav-item-btn ${moduloActivo === 'taller' ? 'activo' : ''}`}
-              onClick={() => cambiarModulo('taller')}
-            >
-              🔧 Operaciones y Taller
-            </button>
-          </li>
+              <li>
+                <button
+                  className={`nav-item-btn ${moduloActivo === 'taller' ? 'activo' : ''}`}
+                  onClick={() => cambiarModulo('taller')}
+                >
+                  🔧 Operaciones y Taller
+                </button>
+              </li>
+            </>
+          )}
 
-          {/* Modulo de auditoria solo visible para el Gerente (ISO 27001) */}
-          {esGerente && (
+          {/* Area de TI y Service Desk visible para TI y Gerente */}
+          {(esGerente || esTI) && (
+            <li>
+              <button
+                className={`nav-item-btn ${moduloActivo === 'area-ti' ? 'activo' : ''}`}
+                onClick={() => cambiarModulo('area-ti')}
+              >
+                🖥️ Área de TI (Service Desk)
+              </button>
+            </li>
+          )}
+
+          {/* Modulo de auditoria visible para Gerente y TI (ISO 27001) */}
+          {(esGerente || esTI) && (
             <li>
               <button
                 className={`nav-item-btn ${moduloActivo === 'auditoria' ? 'activo' : ''}`}
@@ -178,6 +202,7 @@ export default function App() {
               {moduloActivo === 'ventas' && 'Módulo de Marketing, Ventas y Cotizaciones'}
               {moduloActivo === 'inventario' && 'Módulo de Distribución, Logística y Almacén'}
               {moduloActivo === 'taller' && 'Módulo de Operaciones Técnicas y Mantenimiento'}
+              {moduloActivo === 'area-ti' && 'Área de TI — Mesa de Ayuda (Service Desk) y Cambios'}
               {moduloActivo === 'auditoria' && 'Módulo de Seguridad de Información (ISO 27001)'}
             </h1>
           </div>
@@ -199,11 +224,18 @@ export default function App() {
 
         {/* Renderizado condicional del componente correspondiente */}
         {moduloActivo === 'dashboard' && esGerente && <Dashboard usuario={usuario} />}
-        {moduloActivo === 'ventas' && <Ventas usuario={usuario} />}
-        {moduloActivo === 'inventario' && <Inventario usuario={usuario} />}
-        {moduloActivo === 'taller' && <Taller usuario={usuario} />}
-        {moduloActivo === 'auditoria' && esGerente && <Auditoria usuario={usuario} />}
+        {moduloActivo === 'ventas' && !esTI && <Ventas usuario={usuario} />}
+        {moduloActivo === 'inventario' && !esTI && <Inventario usuario={usuario} />}
+        {moduloActivo === 'taller' && !esTI && <Taller usuario={usuario} />}
+        {moduloActivo === 'area-ti' && (esGerente || esTI) && <AreaTI usuario={usuario} refrescoExterno={refrescoTI} />}
+        {moduloActivo === 'auditoria' && (esGerente || esTI) && <Auditoria usuario={usuario} />}
       </main>
+
+      {/* Boton flotante inferior derecho de Service Desk para enviar incidentes y solicitudes */}
+      <ServiceDeskFlotante
+        usuario={usuario}
+        onTicketCreado={() => setRefrescoTI((n) => n + 1)}
+      />
     </div>
   );
 }

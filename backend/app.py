@@ -8,6 +8,8 @@ from dao.SeguridadDAO import SeguridadDAO
 from dao.InventarioDAO import InventarioDAO
 from dao.VentasDAO import VentasDAO
 from dao.TallerDAO import TallerDAO
+from dao.ServiceDeskDAO import ServiceDeskDAO, TIPOS_SOLICITUD_VALIDOS, TIPOS_CAMBIO_VALIDOS
+from servicios.JiraService import JiraService
 
 # Inicializacion de la aplicacion Flask y habilitacion de CORS para comunicacion con React
 app = Flask(__name__)
@@ -225,6 +227,154 @@ def registrar_log():
         detalle=datos.get('detalle', 'Registro manual')
     )
     return jsonify({'exito': True}), 201
+
+
+# =========================================================================
+# MODULO AREA DE TI: SERVICE DESK, CONTROL DE CAMBIOS Y CONEXION JIRA
+# =========================================================================
+
+@app.route('/api/tickets/jira-config', methods=['GET'])
+def estado_conexion_jira():
+    # Verifica configuracion y conectividad con Jira Cloud sin exponer tokens
+    return jsonify(JiraService.verificar_conexion()), 200
+
+
+@app.route('/api/tickets/metricas', methods=['GET'])
+def obtener_metricas_ti():
+    # Retorna indicadores del Service Desk desde la replica de lectura (Slave)
+    return jsonify(ServiceDeskDAO.obtener_metricas()), 200
+
+
+@app.route('/api/tickets', methods=['GET'])
+def listar_tickets_ti():
+    # Lista todos los tickets para TI/Gerente o solo los propios para Operador
+    rol = request.args.get('rol', '').strip()
+    id_usuario_arg = request.args.get('id_usuario')
+    id_filtro = int(id_usuario_arg) if (rol == 'Operador' and id_usuario_arg and id_usuario_arg.isdigit()) else None
+    tickets = ServiceDeskDAO.obtener_tickets(id_usuario_filtro=id_filtro)
+    return jsonify([t.a_diccionario() for t in tickets]), 200
+
+
+@app.route('/api/tickets', methods=['POST'])
+def crear_ticket_ti():
+    # Registra el ticket en MySQL Master y lo envia a Jira Cloud si esta configurado
+    datos = request.get_json() or {}
+    titulo = (datos.get('titulo') or '').strip()
+    descripcion = (datos.get('descripcion') or '').strip()
+    tipo_solicitud = datos.get('tipo_solicitud', 'Incidente')
+    tipo_cambio = datos.get('tipo_cambio', 'N/A')
+
+    if not titulo or not descripcion:
+        return jsonify({'error': 'Título y Descripción son obligatorios'}), 400
+    if tipo_solicitud not in TIPOS_SOLICITUD_VALIDOS:
+        return jsonify({'error': 'Tipo de solicitud inválido'}), 400
+    if tipo_solicitud == 'Cambio' and tipo_cambio not in TIPOS_CAMBIO_VALIDOS:
+        return jsonify({'error': 'Tipo de cambio inválido'}), 400
+
+    ticket = ServiceDeskDAO.crear_ticket({
+        'id_usuario_solicitante': datos.get('id_usuario_solicitante', 1),
+        'solicitante_username': datos.get('solicitante_username', 'sistema'),
+        'solicitante_nombre': datos.get('solicitante_nombre', 'Usuario SIG-Toyota'),
+        'tipo_solicitud': tipo_solicitud,
+        'tipo_cambio': tipo_cambio,
+        'prioridad': datos.get('prioridad', 'Media'),
+        'area_origen': datos.get('area_origen', 'Operaciones'),
+        'titulo': titulo,
+        'descripcion': descripcion,
+        'impacto_riesgo': (datos.get('impacto_riesgo') or '').strip(),
+        'plan_pruebas': (datos.get('plan_pruebas') or '').strip(),
+        'plan_rollback': (datos.get('plan_rollback') or '').strip(),
+    })
+
+    res_jira = JiraService.crear_issue(ticket)
+    ServiceDeskDAO.actualizar_vinculo_jira(
+        ticket.id_ticket,
+        res_jira.get('key'),
+        res_jira.get('url'),
+        res_jira.get('ok', False),
+        res_jira.get('error'),
+    )
+    ticket_actualizado, _ = ServiceDeskDAO.obtener_detalle(ticket.id_ticket)
+    return jsonify((ticket_actualizado or ticket).a_diccionario()), 201
+
+
+@app.route('/api/tickets/<int:id_ticket>', methods=['GET'])
+def obtener_detalle_ticket_ti(id_ticket):
+    # Retorna el detalle completo del ticket y su historial cronologico
+    ticket, historial = ServiceDeskDAO.obtener_detalle(id_ticket)
+    if not ticket:
+        return jsonify({'error': 'Ticket no encontrado'}), 404
+    return jsonify({
+        'ticket': ticket.a_diccionario(),
+        'historial': [h.a_diccionario() for h in historial],
+    }), 200
+
+
+@app.route('/api/tickets/<int:id_ticket>/estado', methods=['PUT'])
+def actualizar_estado_ticket_ti(id_ticket):
+    # Actualiza la etapa del flujo ITIL, valida aprobacion en Accesos/Cambios y sincroniza con Jira
+    datos = request.get_json() or {}
+    nuevo_estado = datos.get('estado')
+    if not nuevo_estado:
+        return jsonify({'error': 'Debe especificar el nuevo estado'}), 400
+
+    actualizado, error = ServiceDeskDAO.actualizar_estado(
+        id_ticket=id_ticket,
+        nuevo_estado=nuevo_estado,
+        id_actor=int(datos.get('id_usuario') or 1),
+        username_actor=datos.get('username', 'sistema'),
+        nombre_actor=datos.get('nombre_completo', 'Soporte TI'),
+        rol_actor=datos.get('rol', 'TI'),
+        tecnico_ti=datos.get('tecnico_ti_asignado'),
+        resolucion=datos.get('resolucion_evidencia'),
+        comentario=datos.get('comentario'),
+    )
+    if error:
+        return jsonify({'error': error}), 400
+
+    if actualizado.jira_issue_key and JiraService.esta_configurado():
+        detalle_jira = f"[SIG-Toyota] {actualizado.estado} por {datos.get('nombre_completo', 'TI')}: {datos.get('comentario') or datos.get('resolucion_evidencia') or 'Actualizacion de estado'}"
+        JiraService.agregar_comentario(actualizado.jira_issue_key, detalle_jira)
+        JiraService.transicionar_estado(actualizado.jira_issue_key, actualizado.estado)
+
+    return jsonify(actualizado.a_diccionario()), 200
+
+
+@app.route('/api/tickets/<int:id_ticket>/jira-sync', methods=['POST'])
+def sincronizar_ticket_jira(id_ticket):
+    # Reintenta crear el ticket en Jira o consulta su estado actual en Atlassian
+    ticket, _ = ServiceDeskDAO.obtener_detalle(id_ticket)
+    if not ticket:
+        return jsonify({'error': 'Ticket no encontrado'}), 404
+
+    if not JiraService.esta_configurado():
+        return jsonify({'error': 'Jira no está configurado en variables de entorno (.env).'}), 400
+
+    if not ticket.jira_issue_key:
+        res_jira = JiraService.crear_issue(ticket)
+        ServiceDeskDAO.actualizar_vinculo_jira(
+            ticket.id_ticket,
+            res_jira.get('key'),
+            res_jira.get('url'),
+            res_jira.get('ok', False),
+            res_jira.get('error'),
+        )
+        actualizado, _ = ServiceDeskDAO.obtener_detalle(id_ticket)
+        if res_jira.get('ok'):
+            return jsonify({'exito': True, 'mensaje': f"Ticket enviado a Jira como {res_jira['key']}", 'ticket': actualizado.a_diccionario()}), 200
+        return jsonify({'error': res_jira.get('error') or 'Error al enviar a Jira'}), 400
+
+    consulta = JiraService.consultar_issue(ticket.jira_issue_key)
+    if not consulta.get('ok'):
+        return jsonify({'error': consulta.get('error')}), 400
+
+    return jsonify({
+        'exito': True,
+        'estado_jira': consulta.get('estado_jira'),
+        'asignado_jira': consulta.get('asignado_jira'),
+        'ticket': ticket.a_diccionario(),
+    }), 200
+
 
 # Ejecucion del servidor Flask en el puerto 5000
 if __name__ == '__main__':

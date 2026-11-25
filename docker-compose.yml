@@ -126,6 +126,12 @@ services:
       MYSQL_PASSWORD: '123456'
       MYSQL_DATABASE: toyota_db
       PORT: 5000
+      # Integracion opcional con Jira Cloud (leer desde archivo .env en la raiz)
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY:-}
+      JIRA_ISSUE_TYPE: ${JIRA_ISSUE_TYPE:-}
     depends_on:
       db-master:
         condition: service_healthy

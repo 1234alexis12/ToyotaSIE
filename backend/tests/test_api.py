@@ -81,3 +81,84 @@ def test_registro_en_bitacora_auditoria(cliente):
     assert len(logs) > 0
     assert 'modulo' in logs[0]
     assert 'accion' in logs[0]
+
+
+# Prueba 7: Autenticacion del nuevo rol Soporte TI
+def test_login_soporte_ti_exitoso(cliente):
+    payload = {'username': 'soporte_ti', 'password': 'Toyota2026!'}
+    respuesta = cliente.post('/api/login', json=payload)
+    assert respuesta.status_code == 200
+    datos = respuesta.get_json()
+    assert datos['exito'] is True
+    assert datos['usuario']['rol'] == 'TI'
+
+
+# Prueba 8: Creacion de ticket en Service Desk con calculo SLA y mock de Jira
+def test_crear_ticket_service_desk_y_jira(cliente, monkeypatch):
+    from servicios.JiraService import JiraService
+
+    monkeypatch.setattr(
+        JiraService,
+        'crear_issue',
+        classmethod(lambda cls, t: {
+            'ok': True,
+            'key': 'TSIE-99',
+            'url': 'https://demo.atlassian.net/browse/TSIE-99',
+            'error': None,
+        }),
+    )
+
+    payload = {
+        'id_usuario_solicitante': 2,
+        'solicitante_username': 'operador_taller',
+        'solicitante_nombre': 'Marcos Quispe (Asesor de Servicio)',
+        'tipo_solicitud': 'Incidente',
+        'prioridad': 'Critica',
+        'area_origen': 'Taller',
+        'titulo': 'Caida de lector de codigos VIN',
+        'descripcion': 'El escaner de recepcion no responde al registrar ingreso.',
+    }
+    respuesta = cliente.post('/api/tickets', json=payload)
+    assert respuesta.status_code == 201
+    ticket = respuesta.get_json()
+    assert ticket['sla_horas'] == 2
+    assert ticket['jira_issue_key'] == 'TSIE-99'
+    assert ticket['jira_sincronizado'] is True
+
+
+# Prueba 9: Regla de aprobacion obligatoria en Solicitudes de Acceso y Control de Cambios
+def test_regla_aprobacion_acceso_service_desk(cliente):
+    res_crear = cliente.post('/api/tickets', json={
+        'id_usuario_solicitante': 2,
+        'solicitante_username': 'operador_taller',
+        'solicitante_nombre': 'Marcos Quispe',
+        'tipo_solicitud': 'Acceso',
+        'prioridad': 'Media',
+        'area_origen': 'Ventas',
+        'titulo': 'Acceso a exportacion de clientes corporativos',
+        'descripcion': 'Solicitud temporal para auditoria.',
+    })
+    assert res_crear.status_code == 201
+    id_ticket = res_crear.get_json()['id_ticket']
+
+    # No debe permitir pasar directo a 'En atencion' sin aprobacion previa
+    res_bloqueado = cliente.put(f'/api/tickets/{id_ticket}/estado', json={
+        'estado': 'En atencion',
+        'id_usuario': 3,
+        'username': 'soporte_ti',
+        'nombre_completo': 'Ing. Luis Mamani (Soporte TI)',
+        'rol': 'TI',
+    })
+    assert res_bloqueado.status_code == 400
+
+    # Aprobar primero como Gerente y luego atender
+    res_aprobado = cliente.put(f'/api/tickets/{id_ticket}/estado', json={
+        'estado': 'Aprobado',
+        'id_usuario': 1,
+        'username': 'admin_gerente',
+        'nombre_completo': 'Ing. Carlos Mendoza (Gerente)',
+        'rol': 'Gerente',
+        'comentario': 'Aprobado por 48 horas bajo minimo privilegio.',
+    })
+    assert res_aprobado.status_code == 200
+    assert res_aprobado.get_json()['estado'] == 'Aprobado'

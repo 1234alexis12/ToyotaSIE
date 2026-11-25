@@ -93,3 +93,51 @@ Seguimiento de órdenes de trabajo técnico (OT) en el área de posventa.
 | - | Costo del Servicio (USD) | `costo_usd` | DECIMAL | 10,2 | NO | Total facturado por mano de obra e insumos. |
 | **IDX** | Estado Operativo | `estado` | ENUM | 15 | NO | Estado del servicio (`Pendiente`, `En proceso`, `Entregado`). Con índice `idx_taller_estado`. |
 | - | Fecha de Ingreso | `fecha_ingreso` | DATE | - | NO | Fecha de recepción del vehículo en el taller. |
+
+
+---
+
+### 7. Entidad: `tickets_ti`
+Registro centralizado de incidentes, solicitudes de servicio/información/acceso y control de cambios del Área de TI (ITIL / ISO/IEC 20000-1), con vinculación a Jira Cloud.
+
+| Key | Nombre | Campo | Tipo de Dato | Tamaño | Nulo | Descripción |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **PK** | Identificador de Ticket | `id_ticket` | INT | - | NO | Clave primaria autoincremental del ticket TI. |
+| **UQ** | Código del Ticket | `codigo_ticket` | VARCHAR | 25 | NO | Código visible único (ej. `TKT-2026-0001`). |
+| **FK** | Solicitante | `id_usuario_solicitante` | INT | - | NO | Usuario que reporta (`usuarios.id_usuario`). |
+| - | Tipo de Solicitud | `tipo_solicitud` | ENUM | 15 | NO | `Incidente`, `Servicio`, `Informacion`, `Acceso`, `Cambio`. |
+| - | Tipo de Cambio | `tipo_cambio` | ENUM | 15 | NO | `N/A`, `Estandar`, `Normal`, `Emergencia`. |
+| **IDX** | Prioridad | `prioridad` | ENUM | 10 | NO | `Baja`, `Media`, `Alta`, `Critica`. |
+| - | Área de Origen | `area_origen` | VARCHAR | 60 | NO | Área solicitante (Ventas, Almacén, Taller, Gerencia, TI). |
+| - | Título | `titulo` | VARCHAR | 160 | NO | Resumen corto del incidente o solicitud. |
+| - | Descripción | `descripcion` | TEXT | - | NO | Detalle funcional o técnico completo. |
+| - | Impacto / Riesgo | `impacto_riesgo` | VARCHAR | 255 | SÍ | Evaluación de impacto operativo (Cambios/Accesos). |
+| - | Plan de Pruebas | `plan_pruebas` | VARCHAR | 255 | SÍ | Validaciones previas para Control de Cambios. |
+| - | Plan de Rollback | `plan_rollback` | VARCHAR | 255 | SÍ | Plan de reversión en caso de falla del cambio. |
+| **IDX** | Estado | `estado` | ENUM | 15 | NO | `Solicitado`, `En evaluacion`, `Aprobado`, `En atencion`, `Cerrado`, `Rechazado`. |
+| **FK** | Aprobador | `aprobado_por` | INT | - | SÍ | Usuario responsable que aprobó Acceso o Cambio. |
+| - | Técnico TI Asignado | `tecnico_ti_asignado` | VARCHAR | 120 | SÍ | Especialista TI a cargo de la atención. |
+| - | Resolución / Evidencia | `resolucion_evidencia` | TEXT | - | SÍ | Detalle de cierre y evidencia técnica. |
+| - | SLA (Horas) | `sla_horas` | INT | - | NO | Tiempo máximo pactado según prioridad (`2`, `4`, `24`, `48`). |
+| - | Fecha de Creación | `fecha_creacion` | DATETIME | - | NO | Marca de tiempo de recepción del ticket. |
+| - | Límite SLA | `fecha_limite_sla` | DATETIME | - | NO | Fecha máxima de resolución antes de vencimiento SLA. |
+| - | Fecha de Cierre | `fecha_cierre` | DATETIME | - | SÍ | Marca de tiempo de finalización o rechazo. |
+| **IDX** | Clave Jira | `jira_issue_key` | VARCHAR | 30 | SÍ | Identificador del ticket en Jira Cloud (ej. `TSIE-14`). |
+| - | URL Jira | `jira_url` | VARCHAR | 255 | SÍ | Enlace directo al issue en Jira Cloud. |
+| - | Sincronizado Jira | `jira_sincronizado` | TINYINT | 1 | NO | Indica si el ticket ya fue creado en Jira (`1` o `0`). |
+| - | Error Jira | `jira_ultimo_error` | VARCHAR | 255 | SÍ | Último mensaje de diagnóstico si Jira estuvo inaccesible. |
+
+---
+
+### 8. Entidad: `ticket_historial`
+Bitácora cronológica de transiciones de estado y comentarios por cada ticket de TI.
+
+| Key | Nombre | Campo | Tipo de Dato | Tamaño | Nulo | Descripción |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **PK** | Identificador de Evento | `id_evento` | INT | - | NO | Clave primaria autoincremental del historial. |
+| **FK** | Ticket Asociado | `id_ticket` | INT | - | NO | Referencia a `tickets_ti(id_ticket)`. |
+| **FK** | Actor Responsable | `id_usuario` | INT | - | SÍ | Usuario que ejecutó la acción (`usuarios.id_usuario`). |
+| - | Estado Anterior | `estado_anterior` | VARCHAR | 30 | SÍ | Etapa previa del ticket (NULL al crearse). |
+| - | Estado Nuevo | `estado_nuevo` | VARCHAR | 30 | NO | Etapa a la que transitó el ticket. |
+| - | Comentario | `comentario` | TEXT | - | NO | Motivo, aprobación o evidencia técnica registrada. |
+| - | Fecha y Hora | `fecha_hora` | DATETIME | - | NO | Marca temporal exacta del evento. |
