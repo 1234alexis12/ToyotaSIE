@@ -8,7 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copia del codigo fuente y compilacion para produccion
+# Copia del codigo fuente y compilacion para produccion usando el proxy /api de Nginx
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
 COPY . .
 RUN npm run build
 

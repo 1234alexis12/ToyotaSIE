@@ -1,33 +1,112 @@
 # Orquestador multi-contenedor para el sistema empresarial SIG-Toyota
-# Item 12 de los lineamientos: Despliegue y Plataforma de Contenedores
+# Incluye arquitectura MySQL 8.0 Master-Slave (Escritura en Master / Lectura en Slave)
 
 services:
-  # Servicio 1: Base de Datos Relacional MySQL 8.0
-  db:
+  # Servicio 1A: Base de Datos Maestro (Master - Escritura transaccional)
+  db-master:
     image: mysql:8.0
-    container_name: toyota_mysql
+    container_name: toyota_mysql_master
     restart: unless-stopped
+    command: --server-id=1 --log-bin=mysql-bin --binlog-format=ROW --gtid-mode=ON --enforce-gtid-consistency=ON
     environment:
-      # Nombre de la base de datos creada al inicializar el contenedor
       MYSQL_DATABASE: toyota_db
-      # Clave de superusuario root
       MYSQL_ROOT_PASSWORD: '123456'
     ports:
-      # Mapeo de puerto para acceso desde herramientas de administracion (Workbench)
-      - "3306:3306"
+      # Puerto 3310 en Windows/Workbench para no chocar con 3306 local ni 3308/3309
+      - "3310:3306"
     volumes:
-      # Carga automatica del script de creacion de tablas, indices y semillas
+      # Carga automatica de tablas, indices y semillas
       - ./database/toyota_db.sql:/docker-entrypoint-initdb.d/01_toyota_db.sql:ro
-      # Volumen persistente para conservar la informacion de la base de datos
-      - toyota_db_data:/var/lib/mysql
+      # Creacion automatica del usuario de replicacion repl_toyota
+      - ./database/init_master_repl.sql:/docker-entrypoint-initdb.d/02_master_repl.sql:ro
+      # Volumen persistente del nodo Maestro
+      - toyota_master_data:/var/lib/mysql
     healthcheck:
-      # Verificacion de disponibilidad de MySQL antes de levantar el backend
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-u", "root", "-p123456"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
 
-  # Servicio 2: Backend API REST en Python Flask
+  # Servicio 1B: Base de Datos Esclavo (Slave / Read Replica - Solo lectura)
+  db-slave:
+    image: mysql:8.0
+    container_name: toyota_mysql_slave
+    restart: unless-stopped
+    command: --server-id=2 --relay-log=mysql-relay-bin --gtid-mode=ON --enforce-gtid-consistency=ON --log-replica-updates=ON --read-only=ON
+    environment:
+      MYSQL_ROOT_PASSWORD: '123456'
+    ports:
+      # Puerto 3311 en Windows/Workbench para consultar la replica de lectura
+      - "3311:3306"
+    volumes:
+      # Volumen persistente del nodo Esclavo
+      - toyota_slave_data:/var/lib/mysql
+    depends_on:
+      db-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-u", "root", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  # Servicio 1C: Inicializador automatico del enlace de replicacion Master -> Slave
+  db-replica-init:
+    image: mysql:8.0
+    container_name: toyota_repl_init
+    restart: "no"
+    depends_on:
+      db-master:
+        condition: service_healthy
+      db-slave:
+        condition: service_healthy
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        for i in $$(seq 1 30); do
+          if mysqladmin ping -h db-master -uroot -p123456 --silent >/dev/null 2>&1 && \
+             mysqladmin ping -h db-slave -uroot -p123456 --silent >/dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+        done
+
+        echo "Verificando estado de replicacion en db-slave..."
+        IO_RUNNING=$$(mysql -h db-slave -uroot -p123456 -Nse "SHOW REPLICA STATUS\G" | awk '/Replica_IO_Running:/ {print $$2}')
+        if [ "$$IO_RUNNING" != "Yes" ]; then
+          echo "Configurando replicacion GTID hacia db-master..."
+          mysql -h db-slave -uroot -p123456 -e "
+            STOP REPLICA;
+            RESET REPLICA ALL;
+            CHANGE REPLICATION SOURCE TO
+              SOURCE_HOST='db-master',
+              SOURCE_PORT=3306,
+              SOURCE_USER='repl_toyota',
+              SOURCE_PASSWORD='ReplicaPass2026!',
+              SOURCE_AUTO_POSITION=1,
+              GET_SOURCE_PUBLIC_KEY=1;
+            START REPLICA;
+            SET PERSIST read_only = ON;
+            SET PERSIST super_read_only = ON;
+          "
+        else
+          echo "Replicacion ya activa en db-slave."
+        fi
+        echo "Esperando sincronizacion de toyota_db en db-slave..."
+        for i in $$(seq 1 30); do
+          if mysql -h db-slave -uroot -p123456 -Nse "SELECT COUNT(*) FROM toyota_db.usuarios;" >/dev/null 2>&1; then
+            echo "Replicacion sincronizada correctamente."
+            mysql -h db-slave -uroot -p123456 -e "SHOW REPLICA STATUS\G" | grep -E "Replica_IO_Running|Replica_SQL_Running|Seconds_Behind_Source|Executed_Gtid_Set"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Tiempo agotado esperando toyota_db en db-slave" >&2
+        exit 1
+
+  # Servicio 2: Backend API REST en Python Flask (Read/Write Splitting)
   backend:
     build:
       context: ./backend
@@ -35,41 +114,44 @@ services:
     container_name: toyota_backend
     restart: unless-stopped
     ports:
-      # Exposicion del puerto de la API REST
       - "5000:5000"
     environment:
-      # Nombre del host del contenedor de base de datos dentro de la red interna
-      MYSQL_HOST: db
-      # Puerto estandar de comunicacion interna en MySQL
+      # Nodo Maestro para operaciones de escritura (INSERT/UPDATE)
+      MYSQL_HOST: db-master
       MYSQL_PORT: 3306
-      # Usuario de conexion a la base de datos
+      # Nodo Esclavo para consultas de lectura (SELECT / Dashboard / Reportes)
+      MYSQL_SLAVE_HOST: db-slave
+      MYSQL_SLAVE_PORT: 3306
       MYSQL_USER: root
-      # Contraseña de la base de datos
       MYSQL_PASSWORD: '123456'
-      # Nombre de la base de datos operativa
       MYSQL_DATABASE: toyota_db
-      # Puerto de escucha del servidor Flask
       PORT: 5000
     depends_on:
-      # Asegura que el backend solo inicie cuando MySQL este completamente listo
-      db:
+      db-master:
         condition: service_healthy
+      db-slave:
+        condition: service_healthy
+      db-replica-init:
+        condition: service_completed_successfully
 
   # Servicio 3: Frontend Web React servido mediante Nginx
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
     container_name: toyota_frontend
     restart: unless-stopped
     ports:
-      # Puerto HTTP principal accesible desde cualquier navegador
-      - "80:80"
+      # Puerto HTTP en 8080 para no chocar con el puerto 80 ocupado por otros contenedores
+      - "8080:80"
     depends_on:
-      # Espera que el backend este activo para responder a las peticiones del frontend
       - backend
 
-# Definicion de volumenes para persistencia de datos
+# Definicion de volumenes persistentes para Master y Slave
 volumes:
-  toyota_db_data:
+  toyota_master_data:
+    driver: local
+  toyota_slave_data:
     driver: local

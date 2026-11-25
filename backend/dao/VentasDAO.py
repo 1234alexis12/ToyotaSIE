@@ -23,8 +23,8 @@ class VentasDAO:
 
     @classmethod
     def obtener_clientes(cls):
-        # Obtiene la lista completa de clientes registrados
-        conexion = ConexionBD.obtener_conexion()
+        # Obtiene la lista completa de clientes desde el nodo Esclavo (Slave)
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)
@@ -74,8 +74,8 @@ class VentasDAO:
 
     @classmethod
     def obtener_ventas(cls):
-        # Consulta transacciones de ventas uniendo tablas clientes e inventario (JOIN)
-        conexion = ConexionBD.obtener_conexion()
+        # Consulta transacciones de ventas desde el nodo Esclavo (Slave)
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)

@@ -13,15 +13,20 @@ from dao.TallerDAO import TallerDAO
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Endpoint de diagnostico de salud del servidor y estado de la base de datos
+# Endpoint de diagnostico de salud del servidor y estado Master-Slave de MySQL
 @app.route('/api/health', methods=['GET'])
 def estado_salud():
-    # Verifica conectividad con el servicio MySQL
-    db_activa = ConexionBD.probar_conexion()
+    # Verifica conectividad con los nodos Master (escritura) y Slave (lectura)
+    nodos = ConexionBD.obtener_estado_replicacion()
+    master_activo = nodos['master']['conectado']
+    slave_activo = nodos['slave']['conectado']
     return jsonify({
         'estado': 'Activo',
         'servicio': 'API SIG-Toyota Backend',
-        'mysql_conectado': db_activa
+        'mysql_conectado': master_activo,
+        'master': nodos['master'],
+        'slave': nodos['slave'],
+        'enrutamiento': 'Escrituras -> Master | Lecturas -> Slave' if slave_activo else 'Modo nodo unico / memoria'
     }), 200
 
 # Endpoint de autenticacion de usuarios y asignacion de roles (Login)
