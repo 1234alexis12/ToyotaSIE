@@ -35,8 +35,8 @@ class SeguridadDAO:
 
     @classmethod
     def autenticar_usuario(cls, username, password):
-        # Valida credenciales contra MySQL usando consultas preparadas contra SQL Injection
-        conexion = ConexionBD.obtener_conexion()
+        # Valida credenciales leyendo desde la replica (Slave) con consultas parametrizadas
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)
@@ -103,8 +103,8 @@ class SeguridadDAO:
 
     @classmethod
     def obtener_todos_logs(cls):
-        # Obtiene el historial completo de eventos para la vista de Auditoria
-        conexion = ConexionBD.obtener_conexion()
+        # Obtiene el historial completo de eventos desde el nodo Esclavo (Slave)
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)

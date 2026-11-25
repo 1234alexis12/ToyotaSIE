@@ -16,8 +16,8 @@ class TallerDAO:
 
     @classmethod
     def obtener_todas(cls):
-        # Obtiene las ordenes de taller uniendo cliente y repuesto consumido
-        conexion = ConexionBD.obtener_conexion()
+        # Obtiene las ordenes de taller desde el nodo Esclavo (Slave)
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)
@@ -119,8 +119,8 @@ class TallerDAO:
 
     @classmethod
     def obtener_metricas_dashboard(cls):
-        # Calcula los 4 KPIs clave ejecutando agregaciones SQL (SUM, COUNT)
-        conexion = ConexionBD.obtener_conexion()
+        # Calcula los 4 KPIs clave ejecutando agregaciones SQL en la replica de lectura (Slave)
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)

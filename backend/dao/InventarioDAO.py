@@ -18,8 +18,8 @@ class InventarioDAO:
 
     @classmethod
     def obtener_todos(cls):
-        # Consulta el listado completo de vehiculos y repuestos con su stock actual
-        conexion = ConexionBD.obtener_conexion()
+        # Consulta el listado completo en el nodo Esclavo (Slave) de solo lectura
+        conexion = ConexionBD.obtener_conexion_lectura()
         if conexion:
             try:
                 cursor = conexion.cursor(dictionary=True)
