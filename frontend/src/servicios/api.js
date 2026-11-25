@@ -5,7 +5,86 @@ const API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' &
 const DATOS_SEMILLA = {
   usuarios: [
     { id_usuario: 1, username: 'admin_gerente', rol: 'Gerente', nombre_completo: 'Ing. Carlos Mendoza (Gerente)' },
-    { id_usuario: 2, username: 'operador_taller', rol: 'Operador', nombre_completo: 'Marcos Quispe (Asesor de Servicio)' }
+    { id_usuario: 2, username: 'operador_taller', rol: 'Operador', nombre_completo: 'Marcos Quispe (Asesor de Servicio)' },
+    { id_usuario: 3, username: 'soporte_ti', rol: 'TI', nombre_completo: 'Ing. Luis Mamani (Soporte TI)' }
+  ],
+  tickets_ti: [
+    {
+      id_ticket: 1,
+      codigo_ticket: 'TKT-2026-0001',
+      id_usuario_solicitante: 2,
+      solicitante_username: 'operador_taller',
+      solicitante_nombre: 'Marcos Quispe (Asesor de Servicio)',
+      tipo_solicitud: 'Incidente',
+      tipo_cambio: 'N/A',
+      prioridad: 'Alta',
+      area_origen: 'Taller',
+      titulo: 'Error al imprimir orden de taller en impresora de bahia 2',
+      descripcion: 'La impresora termica de red en bahia 2 muestra cola atascada al generar OT.',
+      estado: 'En atencion',
+      tecnico_ti_asignado: 'Ing. Luis Mamani (Soporte TI)',
+      sla_horas: 4,
+      fecha_creacion: '2026-11-25 08:15:00',
+      fecha_limite_sla: '2026-11-25 12:15:00',
+      sla_estado: 'A tiempo',
+      jira_issue_key: null,
+      jira_url: null,
+      jira_sincronizado: false
+    },
+    {
+      id_ticket: 2,
+      codigo_ticket: 'TKT-2026-0002',
+      id_usuario_solicitante: 2,
+      solicitante_username: 'operador_taller',
+      solicitante_nombre: 'Marcos Quispe (Asesor de Servicio)',
+      tipo_solicitud: 'Acceso',
+      tipo_cambio: 'N/A',
+      prioridad: 'Media',
+      area_origen: 'Ventas',
+      titulo: 'Solicitud de acceso temporal a reportes ejecutivos de ventas',
+      descripcion: 'Requiero permiso de lectura para cierre comercial mensual.',
+      impacto_riesgo: 'Acceso de solo lectura sujeto a minimo privilegio.',
+      estado: 'Solicitado',
+      sla_horas: 24,
+      fecha_creacion: '2026-11-25 09:30:00',
+      fecha_limite_sla: '2026-11-26 09:30:00',
+      sla_estado: 'A tiempo',
+      jira_issue_key: null,
+      jira_url: null,
+      jira_sincronizado: false
+    },
+    {
+      id_ticket: 3,
+      codigo_ticket: 'TKT-2026-0003',
+      id_usuario_solicitante: 1,
+      solicitante_username: 'admin_gerente',
+      solicitante_nombre: 'Ing. Carlos Mendoza (Gerente)',
+      tipo_solicitud: 'Cambio',
+      tipo_cambio: 'Normal',
+      prioridad: 'Alta',
+      area_origen: 'Infraestructura TI',
+      titulo: 'Despliegue de replicacion Master-Slave MySQL 8.0 en Docker',
+      descripcion: 'Separar escrituras en Master (3310) y lecturas en Slave (3311).',
+      impacto_riesgo: 'Latencia minima durante arranque inicial.',
+      plan_pruebas: 'Validar /api/health y bloqueo super_read_only en Slave.',
+      plan_rollback: 'Revertir docker-compose.yml manteniendo volumen toyota_master_data.',
+      estado: 'Aprobado',
+      aprobado_por: 1,
+      aprobador_nombre: 'Ing. Carlos Mendoza (Gerente)',
+      tecnico_ti_asignado: 'Ing. Luis Mamani (Soporte TI)',
+      sla_horas: 4,
+      fecha_creacion: '2026-11-25 10:00:00',
+      fecha_limite_sla: '2026-11-25 14:00:00',
+      sla_estado: 'A tiempo',
+      jira_issue_key: null,
+      jira_url: null,
+      jira_sincronizado: false
+    }
+  ],
+  ticket_historial: [
+    { id_evento: 1, id_ticket: 1, usuario_nombre: 'Marcos Quispe (Asesor de Servicio)', estado_anterior: null, estado_nuevo: 'Solicitado', comentario: 'Ticket registrado desde Service Desk.', fecha_hora: '2026-11-25 08:15:00' },
+    { id_evento: 2, id_ticket: 2, usuario_nombre: 'Marcos Quispe (Asesor de Servicio)', estado_anterior: null, estado_nuevo: 'Solicitado', comentario: 'Solicitud pendiente de aprobacion gerencial.', fecha_hora: '2026-11-25 09:30:00' },
+    { id_evento: 3, id_ticket: 3, usuario_nombre: 'Ing. Carlos Mendoza (Gerente)', estado_anterior: 'Solicitado', estado_nuevo: 'Aprobado', comentario: 'Cambio aprobado con plan de pruebas y rollback.', fecha_hora: '2026-11-25 10:10:00' }
   ],
   clientes: [
     { id_cliente: 1, dni_ruc: '20601234567', nombre_razon: 'Minera Cerro Verde S.A.A.', telefono: '958123456', email: 'logistica@cerroverde.pe', tipo_cliente: 'Corporativo' },
@@ -338,4 +417,180 @@ function descontarStockLocal(idItem, cantidad) {
     item.stock_actual = Number(item.stock_actual) - cantidad;
     guardarAlmacenamiento('inventario', inventario);
   }
+}
+
+
+/* =========================================================================
+   SERVICIOS DE AREA DE TI: SERVICE DESK, CONTROL DE CAMBIOS Y JIRA
+   ========================================================================= */
+
+const SLA_LOCAL = { Critica: 2, Alta: 4, Media: 24, Baja: 48 };
+
+export async function apiObtenerEstadoJira() {
+  try {
+    const res = await fetch(`${API_URL}/tickets/jira-config`);
+    if (res.ok) return await res.json();
+  } catch {
+    /* Fallback offline */
+  }
+  return { configurado: false, conectado: false, mensaje: 'Backend no disponible.' };
+}
+
+export async function apiObtenerMetricasTI() {
+  try {
+    const res = await fetch(`${API_URL}/tickets/metricas`);
+    if (res.ok) return await res.json();
+  } catch {
+    /* Calculo local */
+  }
+  const lista = obtenerAlmacenamiento('tickets_ti', DATOS_SEMILLA.tickets_ti);
+  return {
+    ticketsAbiertos: lista.filter(t => t.estado !== 'Cerrado' && t.estado !== 'Rechazado').length,
+    ticketsCriticos: lista.filter(t => t.estado !== 'Cerrado' && t.estado !== 'Rechazado' && (t.prioridad === 'Critica' || t.prioridad === 'Alta')).length,
+    ticketsCerrados: lista.filter(t => t.estado === 'Cerrado').length,
+    sincronizadosJira: lista.filter(t => t.jira_sincronizado).length,
+    totalTickets: lista.length
+  };
+}
+
+export async function apiObtenerTickets(idUsuario, rol) {
+  try {
+    const params = new URLSearchParams();
+    if (idUsuario) params.set('id_usuario', String(idUsuario));
+    if (rol) params.set('rol', rol);
+    const res = await fetch(`${API_URL}/tickets?${params.toString()}`);
+    if (res.ok) return await res.json();
+  } catch {
+    /* Fallback local */
+  }
+  const lista = obtenerAlmacenamiento('tickets_ti', DATOS_SEMILLA.tickets_ti);
+  if (rol === 'Operador' && idUsuario) {
+    return lista.filter(t => Number(t.id_usuario_solicitante) === Number(idUsuario));
+  }
+  return lista;
+}
+
+export async function apiCrearTicket(ticket) {
+  let respuesta = null;
+  try {
+    respuesta = await fetch(`${API_URL}/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ticket)
+    });
+  } catch {
+    respuesta = null;
+  }
+
+  if (respuesta) {
+    const body = await respuesta.json().catch(() => ({}));
+    if (respuesta.ok) return body;
+    throw new Error(body.error || 'No se pudo registrar el ticket.');
+  }
+
+  const lista = obtenerAlmacenamiento('tickets_ti', DATOS_SEMILLA.tickets_ti);
+  const historial = obtenerAlmacenamiento('ticket_historial', DATOS_SEMILLA.ticket_historial);
+  const idNuevo = Date.now();
+  const ahora = new Date();
+  const slaHoras = SLA_LOCAL[ticket.prioridad] || 24;
+  const limite = new Date(ahora.getTime() + slaHoras * 3600000);
+  const nuevo = {
+    ...ticket,
+    id_ticket: idNuevo,
+    codigo_ticket: `TKT-LOC-${String(lista.length + 1).padStart(4, '0')}`,
+    estado: 'Solicitado',
+    sla_horas: slaHoras,
+    sla_estado: 'A tiempo',
+    fecha_creacion: ahora.toISOString().replace('T', ' ').substring(0, 19),
+    fecha_limite_sla: limite.toISOString().replace('T', ' ').substring(0, 19),
+    jira_issue_key: null,
+    jira_sincronizado: false
+  };
+  lista.unshift(nuevo);
+  historial.push({
+    id_evento: Date.now() + 1,
+    id_ticket: idNuevo,
+    usuario_nombre: ticket.solicitante_nombre || 'Usuario',
+    estado_anterior: null,
+    estado_nuevo: 'Solicitado',
+    comentario: `Ticket ${ticket.tipo_solicitud} registrado localmente.`,
+    fecha_hora: nuevo.fecha_creacion
+  });
+  guardarAlmacenamiento('tickets_ti', lista);
+  guardarAlmacenamiento('ticket_historial', historial);
+  registrarEventoAuditoria(ticket.solicitante_username || 'sistema', 'TI_SERVICEDESK', 'INSERT_TICKET', `Ticket ${nuevo.codigo_ticket} creado`);
+  return nuevo;
+}
+
+export async function apiObtenerDetalleTicket(idTicket) {
+  try {
+    const res = await fetch(`${API_URL}/tickets/${idTicket}`);
+    if (res.ok) return await res.json();
+  } catch {
+    /* Fallback local */
+  }
+  const lista = obtenerAlmacenamiento('tickets_ti', DATOS_SEMILLA.tickets_ti);
+  const historial = obtenerAlmacenamiento('ticket_historial', DATOS_SEMILLA.ticket_historial);
+  const ticket = lista.find(t => Number(t.id_ticket) === Number(idTicket));
+  if (!ticket) throw new Error('Ticket no encontrado.');
+  return {
+    ticket,
+    historial: historial.filter(h => Number(h.id_ticket) === Number(idTicket))
+  };
+}
+
+export async function apiActualizarEstadoTicket(idTicket, payload) {
+  let respuesta = null;
+  try {
+    respuesta = await fetch(`${API_URL}/tickets/${idTicket}/estado`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    respuesta = null;
+  }
+
+  if (respuesta) {
+    const body = await respuesta.json().catch(() => ({}));
+    if (respuesta.ok) return body;
+    throw new Error(body.error || 'No se pudo actualizar el estado del ticket.');
+  }
+
+  const lista = obtenerAlmacenamiento('tickets_ti', DATOS_SEMILLA.tickets_ti);
+  const historial = obtenerAlmacenamiento('ticket_historial', DATOS_SEMILLA.ticket_historial);
+  const ticket = lista.find(t => Number(t.id_ticket) === Number(idTicket));
+  if (!ticket) throw new Error('Ticket no encontrado.');
+
+  const estadoPrevio = ticket.estado;
+  ticket.estado = payload.estado;
+  if (payload.estado === 'Aprobado') {
+    ticket.aprobado_por = payload.id_usuario;
+    ticket.aprobador_nombre = payload.nombre_completo;
+  }
+  if (payload.tecnico_ti_asignado) ticket.tecnico_ti_asignado = payload.tecnico_ti_asignado;
+  if (payload.resolucion_evidencia) ticket.resolucion_evidencia = payload.resolucion_evidencia;
+
+  historial.push({
+    id_evento: Date.now(),
+    id_ticket: idTicket,
+    usuario_nombre: payload.nombre_completo || 'Soporte TI',
+    estado_anterior: estadoPrevio,
+    estado_nuevo: payload.estado,
+    comentario: payload.comentario || `Estado actualizado a ${payload.estado}`,
+    fecha_hora: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  });
+
+  guardarAlmacenamiento('tickets_ti', lista);
+  guardarAlmacenamiento('ticket_historial', historial);
+  return ticket;
+}
+
+export async function apiSincronizarTicketJira(idTicket) {
+  const res = await fetch(`${API_URL}/tickets/${idTicket}/jira-sync`, { method: 'POST' });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.error || 'No se pudo sincronizar con Jira.');
+  }
+  return body;
 }

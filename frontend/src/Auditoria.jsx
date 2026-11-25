@@ -74,6 +74,7 @@ export default function Auditoria({ usuario }) {
               <option value="VENTAS">Marketing y Ventas</option>
               <option value="LOGISTICA">Logística / Almacén</option>
               <option value="TALLER">Taller / Operaciones</option>
+              <option value="TI_SERVICEDESK">Área de TI / Service Desk</option>
             </select>
           </div>
         </div>

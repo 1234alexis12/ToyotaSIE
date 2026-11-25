@@ -149,3 +149,123 @@ class AuditoriaDTO:
             'accion': self.accion,
             'detalle': self.detalle
         }
+
+
+class TicketTIDTO:
+    """DTO para tickets del Service Desk TI y Control de Cambios (ITIL / ISO 20000-1)."""
+
+    def __init__(
+        self,
+        id_ticket,
+        codigo_ticket,
+        id_usuario_solicitante,
+        solicitante_username,
+        solicitante_nombre,
+        tipo_solicitud,
+        tipo_cambio,
+        prioridad,
+        area_origen,
+        titulo,
+        descripcion,
+        impacto_riesgo,
+        plan_pruebas,
+        plan_rollback,
+        estado,
+        aprobado_por,
+        aprobador_nombre,
+        tecnico_ti_asignado,
+        resolucion_evidencia,
+        sla_horas,
+        fecha_creacion,
+        fecha_limite_sla,
+        fecha_cierre,
+        jira_issue_key,
+        jira_url,
+        jira_sincronizado,
+        jira_ultimo_error=None,
+        sla_estado='A tiempo',
+    ):
+        self.id_ticket = id_ticket
+        self.codigo_ticket = codigo_ticket
+        self.id_usuario_solicitante = id_usuario_solicitante
+        self.solicitante_username = solicitante_username
+        self.solicitante_nombre = solicitante_nombre
+        self.tipo_solicitud = tipo_solicitud
+        self.tipo_cambio = tipo_cambio
+        self.prioridad = prioridad
+        self.area_origen = area_origen
+        self.titulo = titulo
+        self.descripcion = descripcion
+        self.impacto_riesgo = impacto_riesgo
+        self.plan_pruebas = plan_pruebas
+        self.plan_rollback = plan_rollback
+        self.estado = estado
+        self.aprobado_por = aprobado_por
+        self.aprobador_nombre = aprobador_nombre
+        self.tecnico_ti_asignado = tecnico_ti_asignado
+        self.resolucion_evidencia = resolucion_evidencia
+        self.sla_horas = int(sla_horas)
+        self.fecha_creacion = str(fecha_creacion)
+        self.fecha_limite_sla = str(fecha_limite_sla)
+        self.fecha_cierre = str(fecha_cierre) if fecha_cierre else None
+        self.jira_issue_key = jira_issue_key
+        self.jira_url = jira_url
+        self.jira_sincronizado = bool(jira_sincronizado)
+        self.jira_ultimo_error = jira_ultimo_error
+        self.sla_estado = sla_estado
+
+    def a_diccionario(self):
+        return {
+            'id_ticket': self.id_ticket,
+            'codigo_ticket': self.codigo_ticket,
+            'id_usuario_solicitante': self.id_usuario_solicitante,
+            'solicitante_username': self.solicitante_username,
+            'solicitante_nombre': self.solicitante_nombre,
+            'tipo_solicitud': self.tipo_solicitud,
+            'tipo_cambio': self.tipo_cambio,
+            'prioridad': self.prioridad,
+            'area_origen': self.area_origen,
+            'titulo': self.titulo,
+            'descripcion': self.descripcion,
+            'impacto_riesgo': self.impacto_riesgo,
+            'plan_pruebas': self.plan_pruebas,
+            'plan_rollback': self.plan_rollback,
+            'estado': self.estado,
+            'aprobado_por': self.aprobado_por,
+            'aprobador_nombre': self.aprobador_nombre,
+            'tecnico_ti_asignado': self.tecnico_ti_asignado,
+            'resolucion_evidencia': self.resolucion_evidencia,
+            'sla_horas': self.sla_horas,
+            'fecha_creacion': self.fecha_creacion,
+            'fecha_limite_sla': self.fecha_limite_sla,
+            'fecha_cierre': self.fecha_cierre,
+            'jira_issue_key': self.jira_issue_key,
+            'jira_url': self.jira_url,
+            'jira_sincronizado': self.jira_sincronizado,
+            'jira_ultimo_error': self.jira_ultimo_error,
+            'sla_estado': self.sla_estado,
+        }
+
+
+class TicketHistorialDTO:
+    """DTO para eventos cronologicos de trazabilidad en un ticket de TI."""
+
+    def __init__(self, id_evento, id_ticket, usuario_nombre, estado_anterior, estado_nuevo, comentario, fecha_hora):
+        self.id_evento = id_evento
+        self.id_ticket = id_ticket
+        self.usuario_nombre = usuario_nombre
+        self.estado_anterior = estado_anterior
+        self.estado_nuevo = estado_nuevo
+        self.comentario = comentario
+        self.fecha_hora = str(fecha_hora)
+
+    def a_diccionario(self):
+        return {
+            'id_evento': self.id_evento,
+            'id_ticket': self.id_ticket,
+            'usuario_nombre': self.usuario_nombre,
+            'estado_anterior': self.estado_anterior,
+            'estado_nuevo': self.estado_nuevo,
+            'comentario': self.comentario,
+            'fecha_hora': self.fecha_hora,
+        }

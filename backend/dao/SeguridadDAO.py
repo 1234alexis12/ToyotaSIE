@@ -20,6 +20,14 @@ _USUARIOS_MEMORIA = [
         'nombre_completo': 'Marcos Quispe (Asesor de Servicio)',
         'rol': 'Operador',
         'estado': 'Activo'
+    },
+    {
+        'id_usuario': 3,
+        'username': 'soporte_ti',
+        'password_hash': bcrypt.hashpw(b'Toyota2026!', bcrypt.gensalt()).decode('utf-8'),
+        'nombre_completo': 'Ing. Luis Mamani (Soporte TI)',
+        'rol': 'TI',
+        'estado': 'Activo'
     }
 ]
 

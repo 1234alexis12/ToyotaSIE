@@ -39,6 +39,9 @@ export default function Login({ onLoginExitoso }) {
     if (tipoRol === 'Gerente') {
       setUsername('admin_gerente');
       setPassword('Toyota2026!');
+    } else if (tipoRol === 'TI') {
+      setUsername('soporte_ti');
+      setPassword('Toyota2026!');
     } else {
       setUsername('operador_taller');
       setPassword('Toyota2026!');
@@ -112,6 +115,13 @@ export default function Login({ onLoginExitoso }) {
               onClick={() => cargarCredencialesDemo('Operador')}
             >
               🔧 Rol Operador
+            </button>
+            <button
+              type="button"
+              className="btn-demo"
+              onClick={() => cargarCredencialesDemo('TI')}
+            >
+              🖥️ Rol Soporte TI
             </button>
           </div>
         </div>
