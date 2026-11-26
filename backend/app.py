@@ -1,6 +1,8 @@
 import os
-from flask import Flask, request, jsonify
+import time
+from flask import Flask, request, jsonify, g, Response, make_response
 from flask_cors import CORS
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from config.MySQLConexion import ConexionBD
 from models.entidades import ClienteDTO, ItemInventarioDTO, VentaDTO, OrdenTallerDTO
@@ -10,26 +12,68 @@ from dao.VentasDAO import VentasDAO
 from dao.TallerDAO import TallerDAO
 from dao.ServiceDeskDAO import ServiceDeskDAO, TIPOS_SOLICITUD_VALIDOS, TIPOS_CAMBIO_VALIDOS
 from servicios.JiraService import JiraService
+from servicios.CacheService import CacheService
+from servicios.MetricsService import HTTP_REQUESTS_TOTAL, HTTP_REQUEST_LATENCY
 
 # Inicializacion de la aplicacion Flask y habilitacion de CORS para comunicacion con React
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Endpoint de diagnostico de salud del servidor y estado Master-Slave de MySQL
+
+@app.before_request
+def _iniciar_medicion_latencia():
+    g._inicio_peticion = time.perf_counter()
+
+
+@app.after_request
+def _registrar_metricas_http(respuesta):
+    ruta = request.url_rule.rule if request.url_rule else request.path
+    if ruta != '/metrics' and request.method != 'OPTIONS':
+        duracion = time.perf_counter() - getattr(g, '_inicio_peticion', time.perf_counter())
+        HTTP_REQUEST_LATENCY.labels(method=request.method, endpoint=ruta).observe(duracion)
+        HTTP_REQUESTS_TOTAL.labels(method=request.method, endpoint=ruta, status=str(respuesta.status_code)).inc()
+    return respuesta
+
+
+def _respuesta_cacheada(clave, productor_datos, ttl=30):
+    """Retorna JSON desde Redis si existe (X-Cache: HIT); de lo contrario consulta BD y cachea."""
+    cacheado = CacheService.obtener_json(clave)
+    if cacheado is not None:
+        resp = make_response(jsonify(cacheado), 200)
+        resp.headers['X-Cache'] = 'HIT'
+        return resp
+
+    datos = productor_datos()
+    CacheService.guardar_json(clave, datos, ttl_segundos=ttl)
+    resp = make_response(jsonify(datos), 200)
+    resp.headers['X-Cache'] = 'MISS'
+    return resp
+
+
+# Endpoint de metricas en formato Prometheus para Grafana
+@app.route('/metrics', methods=['GET'])
+def metricas_prometheus():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
+
+# Endpoint de diagnostico de salud del servidor, Master-Slave MySQL y Redis
 @app.route('/api/health', methods=['GET'])
 def estado_salud():
-    # Verifica conectividad con los nodos Master (escritura) y Slave (lectura)
+    # Verifica conectividad con los nodos Master (escritura), Slave (lectura) y Redis
     nodos = ConexionBD.obtener_estado_replicacion()
     master_activo = nodos['master']['conectado']
     slave_activo = nodos['slave']['conectado']
+    redis_estado = CacheService.estado()
     return jsonify({
         'estado': 'Activo',
         'servicio': 'API SIG-Toyota Backend',
         'mysql_conectado': master_activo,
         'master': nodos['master'],
         'slave': nodos['slave'],
+        'redis': redis_estado,
         'enrutamiento': 'Escrituras -> Master | Lecturas -> Slave' if slave_activo else 'Modo nodo unico / memoria'
     }), 200
+
 
 # Endpoint de autenticacion de usuarios y asignacion de roles (Login)
 @app.route('/api/login', methods=['POST'])
@@ -52,19 +96,22 @@ def login():
 
     return jsonify({'error': 'Credenciales inválidas. Verifique usuario o clave'}), 401
 
-# Endpoint consolidado para el Dashboard de Direccion General
+
+# Endpoint consolidado para el Dashboard de Direccion General (cacheado en Redis)
 @app.route('/api/dashboard', methods=['GET'])
 def obtener_dashboard():
-    # Retorna los 4 KPIs clave y las 5 transacciones mas recientes
-    kpis = TallerDAO.obtener_metricas_dashboard()
-    ventas = VentasDAO.obtener_ventas()[:5]
-    ordenes = TallerDAO.obtener_todas()[:5]
+    def _cargar():
+        kpis = TallerDAO.obtener_metricas_dashboard()
+        ventas = VentasDAO.obtener_ventas()[:5]
+        ordenes = TallerDAO.obtener_todas()[:5]
+        return {
+            'kpis': kpis,
+            'ventasRecientes': [v.a_diccionario() for v in ventas],
+            'ordenesRecientes': [o.a_diccionario() for o in ordenes]
+        }
 
-    return jsonify({
-        'kpis': kpis,
-        'ventasRecientes': [v.a_diccionario() for v in ventas],
-        'ordenesRecientes': [o.a_diccionario() for o in ordenes]
-    }), 200
+    return _respuesta_cacheada('dashboard', _cargar, ttl=30)
+
 
 # Endpoint para listar clientes registrados
 @app.route('/api/clientes', methods=['GET'])
@@ -72,6 +119,7 @@ def listar_clientes():
     # Retorna la lista completa de clientes ordenados alfabeticamente
     clientes = VentasDAO.obtener_clientes()
     return jsonify([c.a_diccionario() for c in clientes]), 200
+
 
 # Endpoint para registrar un nuevo cliente
 @app.route('/api/clientes', methods=['POST'])
@@ -92,12 +140,12 @@ def registrar_cliente():
     nuevo_cliente = VentasDAO.crear_cliente(cliente_dto)
     return jsonify(nuevo_cliente.a_diccionario()), 201
 
-# Endpoint para consultar el inventario de vehiculos y repuestos OEM
+
+# Endpoint para consultar el inventario de vehiculos y repuestos OEM (cacheado en Redis)
 @app.route('/api/inventario', methods=['GET'])
 def listar_inventario():
-    # Retorna todos los items incluyendo calculo de alerta de reposicion
-    items = InventarioDAO.obtener_todos()
-    return jsonify([i.a_diccionario() for i in items]), 200
+    return _respuesta_cacheada('inventario', lambda: [i.a_diccionario() for i in InventarioDAO.obtener_todos()], ttl=30)
+
 
 # Endpoint para registrar o reponer existencias en inventario
 @app.route('/api/inventario', methods=['POST'])
@@ -118,14 +166,15 @@ def agregar_item_inventario():
         precio_usd=float(datos['precio_usd'])
     )
     nuevo_item = InventarioDAO.crear_item(item_dto)
+    CacheService.invalidar('inventario', 'dashboard')
     return jsonify(nuevo_item.a_diccionario()), 201
 
-# Endpoint para consultar el historial de cotizaciones y ventas
+
+# Endpoint para consultar el historial de cotizaciones y ventas (cacheado en Redis)
 @app.route('/api/ventas', methods=['GET'])
 def listar_ventas():
-    # Retorna las operaciones comerciales realizadas
-    ventas = VentasDAO.obtener_ventas()
-    return jsonify([v.a_diccionario() for v in ventas]), 200
+    return _respuesta_cacheada('ventas', lambda: [v.a_diccionario() for v in VentasDAO.obtener_ventas()], ttl=30)
+
 
 # Endpoint para registrar una cotizacion o concretar una venta
 @app.route('/api/ventas', methods=['POST'])
@@ -147,7 +196,9 @@ def crear_venta():
     )
     usuario_nombre = datos.get('username', 'sistema')
     nueva_venta = VentasDAO.crear_venta(venta_dto, id_usuario=1, username=usuario_nombre)
+    CacheService.invalidar('ventas', 'inventario', 'dashboard')
     return jsonify(nueva_venta.a_diccionario()), 201
+
 
 # Endpoint para actualizar el estado de una venta (ej. Cotizado -> Vendido)
 @app.route('/api/ventas/<int:id_venta>/estado', methods=['PUT'])
@@ -159,15 +210,16 @@ def actualizar_estado_venta(id_venta):
 
     exito = VentasDAO.actualizar_estado(id_venta, nuevo_estado, id_usuario=1, username=usuario_nombre)
     if exito:
+        CacheService.invalidar('ventas', 'inventario', 'dashboard')
         return jsonify({'exito': True, 'mensaje': f'Venta actualizada a {nuevo_estado}'}), 200
     return jsonify({'error': 'No se pudo actualizar la venta'}), 400
 
-# Endpoint para listar ordenes de servicio de taller
+
+# Endpoint para listar ordenes de servicio de taller (cacheado en Redis)
 @app.route('/api/taller', methods=['GET'])
 def listar_ordenes_taller():
-    # Retorna las ordenes tecnicas de mantenimiento y PDI
-    ordenes = TallerDAO.obtener_todas()
-    return jsonify([o.a_diccionario() for o in ordenes]), 200
+    return _respuesta_cacheada('taller', lambda: [o.a_diccionario() for o in TallerDAO.obtener_todas()], ttl=30)
+
 
 # Endpoint para registrar una orden de servicio en taller
 @app.route('/api/taller', methods=['POST'])
@@ -192,7 +244,9 @@ def registrar_orden_taller():
     )
     usuario_nombre = datos.get('username', 'sistema')
     nueva_orden = TallerDAO.crear_orden(orden_dto, id_usuario=1, username=usuario_nombre)
+    CacheService.invalidar('taller', 'inventario', 'dashboard')
     return jsonify(nueva_orden.a_diccionario()), 201
+
 
 # Endpoint para actualizar el estado de una orden de taller
 @app.route('/api/taller/<int:id_orden>/estado', methods=['PUT'])
@@ -204,8 +258,10 @@ def actualizar_estado_taller(id_orden):
 
     exito = TallerDAO.actualizar_estado(id_orden, nuevo_estado, id_usuario=1, username=usuario_nombre)
     if exito:
+        CacheService.invalidar('taller', 'dashboard')
         return jsonify({'exito': True, 'mensaje': f'Orden actualizada a {nuevo_estado}'}), 200
     return jsonify({'error': 'No se pudo actualizar la orden de taller'}), 400
+
 
 # Endpoint para consultar la bitacora de auditoria (ISO 27001)
 @app.route('/api/auditoria', methods=['GET'])
@@ -213,6 +269,7 @@ def listar_auditoria():
     # Retorna el historial inmutable de acciones y accesos
     logs = SeguridadDAO.obtener_todos_logs()
     return jsonify([l.a_diccionario() for l in logs]), 200
+
 
 # Endpoint para registrar eventos manuales de auditoria
 @app.route('/api/auditoria', methods=['POST'])
@@ -241,8 +298,8 @@ def estado_conexion_jira():
 
 @app.route('/api/tickets/metricas', methods=['GET'])
 def obtener_metricas_ti():
-    # Retorna indicadores del Service Desk desde la replica de lectura (Slave)
-    return jsonify(ServiceDeskDAO.obtener_metricas()), 200
+    # Retorna indicadores del Service Desk desde Redis o replica de lectura (Slave)
+    return _respuesta_cacheada('tickets_metricas', ServiceDeskDAO.obtener_metricas, ttl=30)
 
 
 @app.route('/api/tickets', methods=['GET'])
@@ -294,6 +351,7 @@ def crear_ticket_ti():
         res_jira.get('ok', False),
         res_jira.get('error'),
     )
+    CacheService.invalidar('tickets_metricas')
     ticket_actualizado, _ = ServiceDeskDAO.obtener_detalle(ticket.id_ticket)
     return jsonify((ticket_actualizado or ticket).a_diccionario()), 201
 
@@ -337,6 +395,7 @@ def actualizar_estado_ticket_ti(id_ticket):
         JiraService.agregar_comentario(actualizado.jira_issue_key, detalle_jira)
         JiraService.transicionar_estado(actualizado.jira_issue_key, actualizado.estado)
 
+    CacheService.invalidar('tickets_metricas')
     return jsonify(actualizado.a_diccionario()), 200
 
 
@@ -359,6 +418,7 @@ def sincronizar_ticket_jira(id_ticket):
             res_jira.get('ok', False),
             res_jira.get('error'),
         )
+        CacheService.invalidar('tickets_metricas')
         actualizado, _ = ServiceDeskDAO.obtener_detalle(id_ticket)
         if res_jira.get('ok'):
             return jsonify({'exito': True, 'mensaje': f"Ticket enviado a Jira como {res_jira['key']}", 'ticket': actualizado.a_diccionario()}), 200

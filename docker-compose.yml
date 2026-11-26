@@ -1,5 +1,5 @@
 # Orquestador multi-contenedor para el sistema empresarial SIG-Toyota
-# Incluye arquitectura MySQL 8.0 Master-Slave (Escritura en Master / Lectura en Slave)
+# Incluye: MySQL 8.0 Master-Slave, Redis Cache, Prometheus, Exporters y Grafana
 
 services:
   # Servicio 1A: Base de Datos Maestro (Master - Escritura transaccional)
@@ -15,11 +15,8 @@ services:
       # Puerto 3310 en Windows/Workbench para no chocar con 3306 local ni 3308/3309
       - "3310:3306"
     volumes:
-      # Carga automatica de tablas, indices y semillas
       - ./database/toyota_db.sql:/docker-entrypoint-initdb.d/01_toyota_db.sql:ro
-      # Creacion automatica del usuario de replicacion repl_toyota
       - ./database/init_master_repl.sql:/docker-entrypoint-initdb.d/02_master_repl.sql:ro
-      # Volumen persistente del nodo Maestro
       - toyota_master_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-u", "root", "-p123456"]
@@ -39,7 +36,6 @@ services:
       # Puerto 3311 en Windows/Workbench para consultar la replica de lectura
       - "3311:3306"
     volumes:
-      # Volumen persistente del nodo Esclavo
       - toyota_slave_data:/var/lib/mysql
     depends_on:
       db-master:
@@ -106,7 +102,21 @@ services:
         echo "Tiempo agotado esperando toyota_db en db-slave" >&2
         exit 1
 
-  # Servicio 2: Backend API REST en Python Flask (Read/Write Splitting)
+  # Servicio 2: Cache en memoria Redis (aceleracion de lecturas y KPIs)
+  redis:
+    image: redis:7-alpine
+    container_name: toyota_redis
+    restart: unless-stopped
+    ports:
+      # Puerto 6380 en Windows para no chocar con el 6379 de otros proyectos
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Servicio 3: Backend API REST en Python Flask (Read/Write Splitting + Cache + /metrics)
   backend:
     build:
       context: ./backend
@@ -116,17 +126,16 @@ services:
     ports:
       - "5000:5000"
     environment:
-      # Nodo Maestro para operaciones de escritura (INSERT/UPDATE)
       MYSQL_HOST: db-master
       MYSQL_PORT: 3306
-      # Nodo Esclavo para consultas de lectura (SELECT / Dashboard / Reportes)
       MYSQL_SLAVE_HOST: db-slave
       MYSQL_SLAVE_PORT: 3306
       MYSQL_USER: root
       MYSQL_PASSWORD: '123456'
       MYSQL_DATABASE: toyota_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       PORT: 5000
-      # Integracion opcional con Jira Cloud (leer desde archivo .env en la raiz)
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
@@ -139,8 +148,10 @@ services:
         condition: service_healthy
       db-replica-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
-  # Servicio 3: Frontend Web React servido mediante Nginx
+  # Servicio 4: Frontend Web React servido mediante Nginx
   frontend:
     build:
       context: ./frontend
@@ -155,9 +166,124 @@ services:
     depends_on:
       - backend
 
-# Definicion de volumenes persistentes para Master y Slave
+  # Servicio 5A: Exporter de metricas MySQL Master (solo red interna Docker)
+  mysql-master-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: toyota_mysql_master_exporter
+    restart: unless-stopped
+    command:
+      - "--config.my-cnf=/.my.cnf"
+      - "--mysqld.address=db-master:3306"
+    volumes:
+      - ./monitoring/mysql/master.my.cnf:/.my.cnf:ro
+    depends_on:
+      db-master:
+        condition: service_healthy
+
+  # Servicio 5B: Exporter de metricas MySQL Slave (solo red interna Docker)
+  mysql-slave-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: toyota_mysql_slave_exporter
+    restart: unless-stopped
+    command:
+      - "--config.my-cnf=/.my.cnf"
+      - "--mysqld.address=db-slave:3306"
+      - "--collect.slave_status"
+    volumes:
+      - ./monitoring/mysql/slave.my.cnf:/.my.cnf:ro
+    depends_on:
+      db-slave:
+        condition: service_healthy
+
+  # Servicio 5C: Exporter de metricas Redis (solo red interna Docker)
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: toyota_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Servicio 5D: Exporter de recursos de la VM / Host (CPU, RAM, Disco, Load, Red)
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: toyota_node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  # Servicio 5E: cAdvisor para CPU, RAM y Red por cada contenedor Docker
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.61.1
+    container_name: toyota_cadvisor
+    restart: unless-stopped
+    privileged: true
+    command:
+      - '--docker_only=true'
+      - '--housekeeping_interval=10s'
+      - '--store_container_labels=false'
+      - '--whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  # Servicio 6: Recolector de metricas Prometheus (http://localhost:9091)
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: toyota_prometheus
+    restart: unless-stopped
+    ports:
+      # Puerto 9091 para no chocar con el 9090 de otros proyectos
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - toyota_prometheus_data:/prometheus
+    depends_on:
+      - backend
+      - mysql-master-exporter
+      - mysql-slave-exporter
+      - redis-exporter
+      - node-exporter
+      - cadvisor
+
+  # Servicio 7: Visualizacion interactiva Grafana (http://localhost:3001)
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: toyota_grafana
+    restart: unless-stopped
+    ports:
+      # Puerto 3001 para no chocar con el 3000 de otros proyectos
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: 'admin'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - toyota_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   toyota_master_data:
     driver: local
   toyota_slave_data:
+    driver: local
+  toyota_prometheus_data:
+    driver: local
+  toyota_grafana_data:
     driver: local

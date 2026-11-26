@@ -176,3 +176,56 @@ def test_regla_aprobacion_acceso_service_desk(cliente):
     })
     assert res_aprobado.status_code == 200
     assert res_aprobado.get_json()['estado'] == 'Aprobado'
+
+
+# Prueba 10: Endpoint de metricas Prometheus (/metrics) y estado de Redis en /api/health
+def test_endpoint_metricas_prometheus_y_health(cliente):
+    res_health = cliente.get('/api/health')
+    assert res_health.status_code == 200
+    datos_health = res_health.get_json()
+    assert 'redis' in datos_health
+
+    res_metrics = cliente.get('/metrics')
+    assert res_metrics.status_code == 200
+    cuerpo = res_metrics.get_data(as_text=True)
+    assert 'toyota_http_requests_total' in cuerpo
+    assert 'toyota_http_request_duration_seconds' in cuerpo
+
+
+# Prueba 11: Cache Redis (HIT/MISS e invalidacion en escritura)
+def test_cache_redis_hit_miss_e_invalidacion(cliente, monkeypatch):
+    from servicios.CacheService import CacheService
+
+    almacen_falso = {}
+
+    def fake_get(cls, clave):
+        return almacen_falso.get(clave)
+
+    def fake_set(cls, clave, valor, ttl_segundos=30):
+        almacen_falso[clave] = valor
+        return True
+
+    def fake_del(cls, *claves):
+        for c in claves:
+            almacen_falso.pop(c, None)
+        return True
+
+    monkeypatch.setattr(CacheService, 'obtener_json', classmethod(fake_get))
+    monkeypatch.setattr(CacheService, 'guardar_json', classmethod(fake_set))
+    monkeypatch.setattr(CacheService, 'invalidar', classmethod(fake_del))
+
+    r1 = cliente.get('/api/dashboard')
+    assert r1.status_code == 200
+    assert r1.headers.get('X-Cache') == 'MISS'
+
+    r2 = cliente.get('/api/dashboard')
+    assert r2.status_code == 200
+    assert r2.headers.get('X-Cache') == 'HIT'
+
+    # Al registrar un ticket nuevo se invalida el cache de metricas TI
+    almacen_falso['tickets_metricas'] = {'totalTickets': 99}
+    cliente.post('/api/tickets', json={
+        'titulo': 'Test invalidacion cache',
+        'descripcion': 'Prueba unitaria de invalidacion',
+    })
+    assert 'tickets_metricas' not in almacen_falso

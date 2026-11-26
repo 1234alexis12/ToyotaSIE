@@ -139,12 +139,23 @@ export default function AreaTI({ usuario, refrescoExterno }) {
             Gestión integral de Incidentes, Solicitudes (Servicio/Información/Acceso), Control de Cambios, SLA y Jira Cloud
           </p>
         </div>
-        <div className={`badge ${estadoJira.conectado ? 'badge-exito' : 'badge-proceso'}`} style={{ padding: '0.45rem 0.85rem' }}>
-          {estadoJira.conectado
-            ? `🔗 Jira Conectado (${estadoJira.project_key})`
-            : estadoJira.configurado
-            ? '⚠️ Jira con error de conexión'
-            : '🔌 Jira en espera de credenciales (.env)'}
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <a
+            href={typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001'}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-secundario btn-sm"
+            style={{ textDecoration: 'none' }}
+          >
+            📈 Abrir Grafana (Rendimiento)
+          </a>
+          <div className={`badge ${estadoJira.conectado ? 'badge-exito' : 'badge-proceso'}`} style={{ padding: '0.45rem 0.85rem' }}>
+            {estadoJira.conectado
+              ? `🔗 Jira Conectado (${estadoJira.project_key})`
+              : estadoJira.configurado
+              ? '⚠️ Jira con error de conexión'
+              : '🔌 Jira en espera de credenciales (.env)'}
+          </div>
         </div>
       </div>
 

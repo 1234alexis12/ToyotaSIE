@@ -2,6 +2,7 @@ import os
 import socket
 import mysql.connector
 from mysql.connector import Error
+from servicios.MetricsService import DB_QUERIES_TOTAL
 
 # Modulo de configuracion y gestion de conexiones Master (Escritura) y Slave (Lectura)
 class ConexionBD:
@@ -66,7 +67,10 @@ class ConexionBD:
     @classmethod
     def obtener_conexion(cls):
         """Retorna conexion al nodo Maestro (Master) para operaciones de escritura."""
-        return cls._conectar_nodo(cls.HOST, cls.PORT)
+        conexion = cls._conectar_nodo(cls.HOST, cls.PORT)
+        if conexion:
+            DB_QUERIES_TOTAL.labels(nodo='master').inc()
+        return conexion
 
     @classmethod
     def obtener_conexion_lectura(cls):
@@ -74,6 +78,7 @@ class ConexionBD:
         if cls.SLAVE_HOST:
             conexion_slave = cls._conectar_nodo(cls.SLAVE_HOST, cls.SLAVE_PORT)
             if conexion_slave:
+                DB_QUERIES_TOTAL.labels(nodo='slave').inc()
                 return conexion_slave
         return cls.obtener_conexion()
 
