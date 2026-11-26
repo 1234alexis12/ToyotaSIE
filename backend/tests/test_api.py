@@ -48,9 +48,23 @@ def test_metricas_dashboard(cliente):
 
 # Prueba 5: Registro de operacion de venta y descuento automatico de stock
 def test_crear_venta_con_descuento_stock(cliente):
-    # Obtiene el stock previo del item 1 (Toyota Hilux)
+    # Asegura stock disponible para la prueba de consistencia
+    from config.MySQLConexion import ConexionBD
     items_antes = InventarioDAO.obtener_todos()
     item_hilux_antes = next(i for i in items_antes if i.id_item == 1)
+    if item_hilux_antes.stock_actual <= 0:
+        conexion = ConexionBD.obtener_conexion()
+        if conexion:
+            try:
+                cursor = conexion.cursor()
+                cursor.execute("UPDATE inventario SET stock_actual = 5 WHERE id_item = 1")
+                conexion.commit()
+                cursor.close()
+                conexion.close()
+            except Exception:
+                pass
+        items_antes = InventarioDAO.obtener_todos()
+        item_hilux_antes = next(i for i in items_antes if i.id_item == 1)
     stock_previo = item_hilux_antes.stock_actual
 
     # Registra una venta cerrada como 'Vendido'

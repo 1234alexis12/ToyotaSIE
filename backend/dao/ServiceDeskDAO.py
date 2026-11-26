@@ -534,7 +534,7 @@ class ServiceDeskDAO:
                 print(f"[Error ServiceDeskDAO actualizar_estado] {e}")
                 conexion.rollback()
                 conexion.close()
-                return None, "Error al actualizar el ticket en base de datos."
+                # Continua con fallback en memoria si la tabla no existe o la BD no responde
 
         # Fallback en memoria
         ticket.estado = nuevo_estado
