@@ -12,7 +12,28 @@ class JiraService:
     TIMEOUT_SEGUNDOS = 8
 
     @classmethod
+    def _cargar_env_local(cls):
+        # Carga credenciales desde .env en raiz o backend si no estan en el entorno
+        rutas_env = ['.env', '../.env', os.path.join(os.path.dirname(__file__), '..', '..', '.env')]
+        for ruta in rutas_env:
+            if os.path.exists(ruta):
+                try:
+                    with open(ruta, 'r', encoding='utf-8') as f:
+                        for linea in f:
+                            linea = linea.strip()
+                            if linea and not linea.startswith('#') and '=' in linea:
+                                clave, valor = linea.split('=', 1)
+                                clave = clave.strip()
+                                valor = valor.strip()
+                                if clave and clave not in os.environ:
+                                    os.environ[clave] = valor
+                    break
+                except Exception:
+                    pass
+
+    @classmethod
     def _obtener_config(cls):
+        cls._cargar_env_local()
         base_url = os.getenv('JIRA_BASE_URL', '').strip().rstrip('/')
         email = os.getenv('JIRA_EMAIL', '').strip()
         api_token = os.getenv('JIRA_API_TOKEN', '').strip()
